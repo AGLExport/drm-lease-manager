@@ -1,0 +1,17 @@
+option('enable-docs',
+    type: 'boolean',
+    value: true,
+    description: 'Build Doxygen document if available.'
+)
+
+option('enable-tests',
+    type: 'boolean',
+    value: false,
+    description: 'Build unit tests'
+)
+
+option('runtime_subdir',
+    type: 'string',
+    value: 'run/drm-lease-manager',
+    description: 'subdirectory to use for runtime data'
+)

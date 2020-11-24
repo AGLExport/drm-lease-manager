@@ -1,0 +1,1 @@
+subdir('dlm-client-test')
