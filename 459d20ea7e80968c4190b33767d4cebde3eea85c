@@ -1,0 +1,129 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "d5408e81_05d6af0e",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "Add\nBug-AGL: SPEC-3729",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "bab3ae4f_9f8e6d38",
+        "filename": "common/test/test-helpers.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "Note: The test should be packaged as a -ptest package so we can execute it in CI.",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "b869a921_e601befa",
+        "filename": "drm-lease-manager/lease-manager.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "At least from rpi i know things could be named \nHDMI-A-1  as well.",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "fe4ad76c_6879d64a",
+        "filename": "drm-lease-manager/lease-manager.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 81,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "name\u003dDSI-1  is e.g. a name used in pi4 world",
+      "range": {
+        "startLine": 81,
+        "startChar": 2,
+        "endLine": 81,
+        "endChar": 37
+      },
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "49f590db_0fa53efd",
+        "filename": "drm-lease-manager/lease-manager.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 100,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "Hmm, can we have a config-file entry as fall-back so we can worst case enter the \u0027custom\u0027 name through that ?",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "7eb8051b_2228ec08",
+        "filename": "drm-lease-manager/test/lease-manager-test.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "Test should be packaged in the recipe as -ptest sub-package. Tnx.",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "0d28b7b6_6773d509",
+        "filename": "subprojects/fff.wrap",
+        "patchSetId": 1
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 4
+      },
+      "writtenOn": "2021-02-18T12:50:32Z",
+      "side": 1,
+      "message": "We would prefer to build fff separately in yocto as a recipe and make it a dependency of the tests. This simplifies cross-building.",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    }
+  ]
+}
