@@ -53,6 +53,24 @@
     },
     {
       "key": {
+        "uuid": "75dfa945_5bf145c2",
+        "filename": "drm-lease-manager/lease-manager.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 163
+      },
+      "writtenOn": "2021-02-19T08:09:03Z",
+      "side": 1,
+      "message": "I think that case is covered by the \"HDMI-A\" type name on line 76.  The \"-1\" at the end will come from the connector-\u003econnectr_type_id value from libdrm.\n\nI\u0027ve verified that on Kingfisher that lease names \"HDMI-A-1 and HDMI-A-2\" are generated for the two HDMI connectors on that board.",
+      "parentUuid": "b869a921_e601befa",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "fe4ad76c_6879d64a",
         "filename": "drm-lease-manager/lease-manager.c",
         "patchSetId": 1
@@ -87,6 +105,24 @@
       "writtenOn": "2021-02-18T12:50:32Z",
       "side": 1,
       "message": "Hmm, can we have a config-file entry as fall-back so we can worst case enter the \u0027custom\u0027 name through that ?",
+      "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "16834593_c63a8c5d",
+        "filename": "drm-lease-manager/lease-manager.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 100,
+      "author": {
+        "id": 163
+      },
+      "writtenOn": "2021-02-19T08:09:03Z",
+      "side": 1,
+      "message": "I think that customizing the lease names via config file is a good idea and was something that I was thinking about as a future enhancement.  Would that be better as a separate change? Would that need a separate Jira ticket?",
+      "parentUuid": "49f590db_0fa53efd",
       "revId": "459d20ea7e80968c4190b33767d4cebde3eea85c",
       "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
       "unresolved": true
