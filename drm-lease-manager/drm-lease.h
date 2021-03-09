@@ -18,5 +18,6 @@
 
 struct lease_handle {
 	char *name;
+	void *user_data;
 };
 #endif
