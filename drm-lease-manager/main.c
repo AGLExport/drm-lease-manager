@@ -91,21 +91,21 @@ int main(int argc, char **argv)
 				ERROR_LOG(
 				    "Can't fulfill lease request: lease=%s\n",
 				    req.lease_handle->name);
-				ls_disconnect_client(ls, req.server);
+				ls_disconnect_client(ls, req.client);
 				break;
 			}
 
-			if (!ls_send_fd(ls, req.server, fd)) {
+			if (!ls_send_fd(ls, req.client, fd)) {
 				ERROR_LOG(
 				    "Client communication error: lease=%s\n",
 				    req.lease_handle->name);
-				ls_disconnect_client(ls, req.server);
+				ls_disconnect_client(ls, req.client);
 				lm_lease_revoke(lm, req.lease_handle);
 			}
 			break;
 		}
 		case LS_REQ_RELEASE_LEASE:
-			ls_disconnect_client(ls, req.server);
+			ls_disconnect_client(ls, req.client);
 			lm_lease_revoke(lm, req.lease_handle);
 			break;
 		default:

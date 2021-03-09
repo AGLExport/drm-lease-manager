@@ -354,8 +354,10 @@ int lm_lease_grant(struct lm *lm, struct lease_handle *handle)
 	assert(handle);
 
 	struct lease *lease = (struct lease *)handle;
-	if (lease->is_granted)
-		return lease->lease_fd;
+	if (lease->is_granted) {
+		/* Lease is already claimed */
+		return -1;
+	}
 
 	lease->lease_fd =
 	    drmModeCreateLease(lm->drm_fd, lease->object_ids,
