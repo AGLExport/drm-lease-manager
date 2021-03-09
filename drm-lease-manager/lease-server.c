@@ -87,9 +87,10 @@ static struct ls_client *client_connect(struct ls *ls, struct ls_server *serv)
 	struct ls_client *client = NULL;
 
 	for (int i = 0; i < ACTIVE_CLIENTS; i++) {
-		client = &serv->clients[i];
-		if (!client->is_connected)
+		if (!serv->clients[i].is_connected) {
+			client = &serv->clients[i];
 			break;
+		}
 	}
 	if (!client) {
 		close(cfd);

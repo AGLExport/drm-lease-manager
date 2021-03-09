@@ -27,14 +27,16 @@ static void usage(const char *progname)
 	printf("Usage: %s [OPTIONS] [<DRM device>]\n\n"
 	       "Options:\n"
 	       "-h, --help \tPrint this help\n"
-	       "-v, --verbose \tEnable verbose debug messages\n",
+	       "-v, --verbose \tEnable verbose debug messages\n"
+	       "-t, --lease-transfer \tAllow lease transfter to new clients\n",
 	       progname);
 }
 
-const char *opts = "vh";
+const char *opts = "vth";
 const struct option options[] = {
     {"help", no_argument, NULL, 'h'},
     {"verbose", no_argument, NULL, 'v'},
+    {"lease-transfer", no_argument, NULL, 't'},
     {NULL, 0, NULL, 0},
 };
 
@@ -43,6 +45,7 @@ int main(int argc, char **argv)
 	char *device = "/dev/dri/card0";
 
 	bool debug_log = false;
+	bool can_transfer_leases = false;
 
 	int c;
 	while ((c = getopt_long(argc, argv, opts, options, NULL)) != -1) {
@@ -50,6 +53,9 @@ int main(int argc, char **argv)
 		switch (c) {
 		case 'v':
 			debug_log = true;
+			break;
+		case 't':
+			can_transfer_leases = true;
 			break;
 		case 'h':
 			ret = EXIT_SUCCESS;
@@ -87,6 +93,10 @@ int main(int argc, char **argv)
 		switch (req.type) {
 		case LS_REQ_GET_LEASE: {
 			int fd = lm_lease_grant(lm, req.lease_handle);
+
+			if (fd < 0 && can_transfer_leases)
+				fd = lm_lease_transfer(lm, req.lease_handle);
+
 			if (fd < 0) {
 				ERROR_LOG(
 				    "Can't fulfill lease request: lease=%s\n",
@@ -94,6 +104,13 @@ int main(int argc, char **argv)
 				ls_disconnect_client(ls, req.client);
 				break;
 			}
+
+			struct ls_client *active_client =
+			    req.lease_handle->user_data;
+			if (active_client)
+				ls_disconnect_client(ls, active_client);
+
+			req.lease_handle->user_data = req.client;
 
 			if (!ls_send_fd(ls, req.client, fd)) {
 				ERROR_LOG(
@@ -106,6 +123,7 @@ int main(int argc, char **argv)
 		}
 		case LS_REQ_RELEASE_LEASE:
 			ls_disconnect_client(ls, req.client);
+			req.lease_handle->user_data = NULL;
 			lm_lease_revoke(lm, req.lease_handle);
 			break;
 		default:

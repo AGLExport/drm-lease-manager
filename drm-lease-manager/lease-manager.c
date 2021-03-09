@@ -372,6 +372,28 @@ int lm_lease_grant(struct lm *lm, struct lease_handle *handle)
 	return lease->lease_fd;
 }
 
+int lm_lease_transfer(struct lm *lm, struct lease_handle *handle)
+{
+	assert(lm);
+	assert(handle);
+
+	struct lease *lease = (struct lease *)handle;
+	if (!lease->is_granted)
+		return -1;
+
+	// TODO: close this fd once a frame is presented from the new
+	//       client.
+	int old_lease_fd = dup(lease->lease_fd);
+
+	lm_lease_revoke(lm, handle);
+	if (lm_lease_grant(lm, handle) < 0) {
+		close(old_lease_fd);
+		return -1;
+	}
+
+	return lease->lease_fd;
+}
+
 void lm_lease_revoke(struct lm *lm, struct lease_handle *handle)
 {
 	assert(lm);
