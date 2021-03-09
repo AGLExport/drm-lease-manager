@@ -28,6 +28,8 @@
 
 #define SOCKETDIR "/tmp"
 
+#define ARRAY_LENGTH(x) sizeof(x) / sizeof(x[0])
+
 /************** Test fixutre functions *************************/
 struct test_config default_test_config;
 
@@ -128,59 +130,6 @@ static void get_and_check_request(struct ls *ls,
 	check_request(&req, expected_lease, expected_type);
 }
 
-/* Asynchronous version of the above.  Has the extra overhead of
- * spawning a new thread, so should be used sparingly. */
-struct async_req {
-	pthread_t tid;
-	struct ls *ls;
-
-	bool req_valid;
-	struct ls_req expected;
-	struct ls_req actual;
-};
-
-static void *get_request_thread(void *arg)
-{
-	struct async_req *async_req = arg;
-	async_req->req_valid =
-	    ls_get_request(async_req->ls, &async_req->actual);
-
-	return NULL;
-}
-
-static struct async_req *
-get_and_check_request_async(struct ls *ls, struct lease_handle *expected_lease,
-			    enum ls_req_type expected_type)
-
-{
-	struct async_req *req = malloc(sizeof(struct async_req));
-	ck_assert_ptr_ne(req, NULL);
-
-	*req = (struct async_req){
-	    .ls = ls,
-	    .expected =
-		{
-		    .lease_handle = expected_lease,
-		    .type = expected_type,
-		},
-	};
-
-	int ret = pthread_create(&req->tid, NULL, get_request_thread, req);
-	ck_assert_int_eq(ret, 0);
-
-	return req;
-}
-
-static void check_async_req_result(struct async_req *req)
-{
-
-	pthread_join(req->tid, NULL);
-	ck_assert_int_eq(req->req_valid, true);
-	check_request(&req->actual, req->expected.lease_handle,
-		      req->expected.type);
-	free(req);
-}
-
 /* issue_lease_request_and_release
  *
  * Test details: Generate a lease request and lease release command from
@@ -225,52 +174,66 @@ END_TEST
  *
  * Test details: Generate multiple lease requests to the same lease server from
  *               multiple clients at the same time
- * Expected results: One get lease and one release lease request are returned
- *                   from ls_get_request().
- *                   Requests from all but the first client are rejected
- *                   (sockets are closed).
+ * Expected results: One lease request per client is returned from
+ *                   ls_get_request().
+ *                   (Test will process each connection in series and either
+ *                    keep the current connection or switch a new one.)
+ *                   Only one client remains connected at the end of the test,
+ *                   and it returns a validlease release request.
  */
 START_TEST(issue_multiple_lease_requests)
 {
+	/* List of which client connections to accept.
+	 * If the nth element is `false` that client request will be
+	 * rejected, and should be reflected in the final configuration
+	 * state */
+	bool keep_current_client[] = {false, true, true, false, true};
+
 	struct lease_handle *leases[] = {
 	    &test_lease,
 	};
 	struct ls *ls = ls_create(leases, 1);
 
-	struct test_config accepted_config;
-	struct client_state *accepted_cstate;
+	const int clients = ARRAY_LENGTH(keep_current_client);
+	struct test_config configs[clients];
+	struct client_state *cstates[clients];
 
-	accepted_config = default_test_config;
-	accepted_cstate = test_client_start(&accepted_config);
-	get_and_check_request(ls, &test_lease, LS_REQ_GET_LEASE);
+	struct ls_req req;
+	struct ls_client *current_client = NULL;
 
-	/*Try to make additional connections while the first is still
-	 *connected. */
-	const int nextra_clients = 2;
-	struct test_config extra_configs[nextra_clients];
-	struct client_state *extra_cstates[nextra_clients];
-
-	for (int i = 0; i < nextra_clients; i++) {
-		extra_configs[i] = default_test_config;
-		extra_cstates[i] = test_client_start(&extra_configs[i]);
+	/* Start all clients and accept / reject connections */
+	for (int i = 0; i < clients; i++) {
+		configs[i] = default_test_config;
+		cstates[i] = test_client_start(&configs[i]);
+		ck_assert_int_eq(ls_get_request(ls, &req), true);
+		check_request(&req, &test_lease, LS_REQ_GET_LEASE);
+		if (current_client && keep_current_client[i]) {
+			ls_disconnect_client(ls, req.client);
+		} else {
+			if (current_client)
+				ls_disconnect_client(ls, current_client);
+			current_client = req.client;
+		}
 	}
 
-	// Start asyncronously checking for the accepted client to release.
-	struct async_req *async_release_req =
-	    get_and_check_request_async(ls, &test_lease, LS_REQ_RELEASE_LEASE);
+	/* Shut down all clients */
+	for (int i = 0; i < clients; i++)
+		test_client_stop(cstates[i]);
 
-	for (int i = 0; i < nextra_clients; i++) {
-		test_client_stop(extra_cstates[i]);
+	/* Check that a valid release is received from the last accepted client
+	 * connection */
+	ck_assert_int_eq(ls_get_request(ls, &req), true);
+	check_request(&req, &test_lease, LS_REQ_RELEASE_LEASE);
+	ck_assert_ptr_eq(current_client, req.client);
+
+	/* Check that no other client connections have completed */
+	int connections_completed = 0;
+	for (int i = 0; i < clients; i++) {
+		if (configs[i].connection_completed) {
+			connections_completed++;
+			ck_assert_int_eq(connections_completed, 1);
+		}
 	}
-
-	/* Release the first connection and check results */
-	test_client_stop(accepted_cstate);
-	check_async_req_result(async_release_req);
-
-	/* Only one connection should be granted access by the lease manager */
-	ck_assert_int_eq(accepted_config.connection_completed, true);
-	for (int i = 0; i < nextra_clients; i++)
-		ck_assert_int_eq(extra_configs[i].connection_completed, false);
 	ls_destroy(ls);
 }
 END_TEST
@@ -311,7 +274,7 @@ START_TEST(send_fd_to_client)
 
 	/* send an fd to the client*/
 	int test_fd = get_dummy_fd();
-	ck_assert_int_eq(ls_send_fd(ls, req.server, test_fd), true);
+	ck_assert_int_eq(ls_send_fd(ls, req.client, test_fd), true);
 
 	test_client_stop(cstate);
 	get_and_check_request(ls, &test_lease, LS_REQ_RELEASE_LEASE);
@@ -343,7 +306,7 @@ START_TEST(ls_send_fd_is_noop_when_fd_is_invalid)
 	int invalid_fd = get_dummy_fd();
 	close(invalid_fd);
 
-	ck_assert_int_eq(ls_send_fd(ls, req.server, invalid_fd), false);
+	ck_assert_int_eq(ls_send_fd(ls, req.client, invalid_fd), false);
 
 	test_client_stop(cstate);
 	get_and_check_request(ls, &test_lease, LS_REQ_RELEASE_LEASE);
