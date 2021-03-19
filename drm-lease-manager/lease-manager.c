@@ -22,6 +22,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,6 +49,11 @@ struct lease {
 
 	uint32_t *object_ids;
 	int nobject_ids;
+
+	/* for lease transfer completion */
+	uint32_t crtc_id;
+	pthread_t transition_tid;
+	bool transition_running;
 };
 
 struct lm {
@@ -199,6 +206,87 @@ static bool lease_add_planes(struct lm *lm, struct lease *lease, int crtc_index)
 	return true;
 }
 
+/* Lease transition
+ * Wait for a client to update the DRM framebuffer on the CRTC managed by
+ * a lease.  Once the framebuffer has been updated, it is safe to close
+ * the fd associated with the previous lease client, freeing the previous
+ * framebuffer if there are no other references to it. */
+static void wait_for_fb_update(struct lease *lease, uint32_t old_fb)
+{
+	uint32_t current_fb = old_fb;
+
+	struct pollfd drm_poll = {
+	    .fd = lease->lease_fd,
+	    .events = POLLIN,
+	};
+
+	while (current_fb == old_fb) {
+		drmModeCrtcPtr crtc;
+		if (poll(&drm_poll, 1, -1) < 0) {
+			if (errno == EINTR)
+				continue;
+			break;
+		}
+
+		crtc = drmModeGetCrtc(lease->lease_fd, lease->crtc_id);
+		current_fb = crtc->buffer_id;
+		drmModeFreeCrtc(crtc);
+	}
+}
+
+struct transition_ctx {
+	struct lease *lease;
+	int close_fd;
+	uint32_t old_fb;
+};
+
+static void transition_done(void *arg)
+{
+	struct transition_ctx *ctx = arg;
+	close(ctx->close_fd);
+	free(ctx);
+}
+
+static void *finish_transition_task(void *arg)
+{
+	struct transition_ctx *ctx = arg;
+	pthread_cleanup_push(transition_done, ctx);
+	wait_for_fb_update(ctx->lease, ctx->old_fb);
+	pthread_cleanup_pop(true);
+	return NULL;
+}
+
+static void close_after_lease_transition(struct lease *lease, int close_fd)
+{
+	struct transition_ctx *ctx = calloc(1, sizeof(*ctx));
+
+	assert(ctx);
+
+	drmModeCrtcPtr crtc = drmModeGetCrtc(lease->lease_fd, lease->crtc_id);
+
+	ctx->lease = lease;
+	ctx->close_fd = close_fd;
+	ctx->old_fb = crtc->buffer_id;
+
+	drmModeFreeCrtc(crtc);
+
+	int ret = pthread_create(&lease->transition_tid, NULL,
+				 finish_transition_task, ctx);
+
+	lease->transition_running = (ret == 0);
+}
+
+static void cancel_lease_transition_thread(struct lease *lease)
+{
+
+	if (lease->transition_running) {
+		pthread_cancel(lease->transition_tid);
+		pthread_join(lease->transition_tid, NULL);
+	}
+
+	lease->transition_running = false;
+}
+
 static void lease_free(struct lease *lease)
 {
 	free(lease->base.name);
@@ -238,6 +326,7 @@ static struct lease *lease_create(struct lm *lm, drmModeConnectorPtr connector)
 		goto err;
 
 	uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
+	lease->crtc_id = crtc_id;
 	lease->object_ids[lease->nobject_ids++] = crtc_id;
 	lease->object_ids[lease->nobject_ids++] = connector->connector_id;
 
@@ -381,8 +470,6 @@ int lm_lease_transfer(struct lm *lm, struct lease_handle *handle)
 	if (!lease->is_granted)
 		return -1;
 
-	// TODO: close this fd once a frame is presented from the new
-	//       client.
 	int old_lease_fd = dup(lease->lease_fd);
 
 	lm_lease_revoke(lm, handle);
@@ -391,6 +478,7 @@ int lm_lease_transfer(struct lm *lm, struct lease_handle *handle)
 		return -1;
 	}
 
+	close_after_lease_transition(lease, old_lease_fd);
 	return lease->lease_fd;
 }
 
@@ -405,6 +493,7 @@ void lm_lease_revoke(struct lm *lm, struct lease_handle *handle)
 		return;
 
 	drmModeRevokeLease(lm->drm_fd, lease->lessee_id);
+	cancel_lease_transition_thread(lease);
 	close(lease->lease_fd);
 	lease->is_granted = false;
 }
