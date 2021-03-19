@@ -34,12 +34,12 @@ configure_file(output: 'config.h',
 configuration_inc = include_directories('.')
 
 drm_dep = dependency('libdrm', version: '>= 2.4.89')
+thread_dep = dependency('threads')
 
 enable_tests = get_option('enable-tests')
 
 if enable_tests
   check_dep = dependency('check')
-  thread_dep = dependency('threads')
 
 # Default to the system provided version of fff.h.
 # otherwise fetch it ourselves.
