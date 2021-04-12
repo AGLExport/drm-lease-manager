@@ -266,15 +266,16 @@ struct ls *ls_create(struct lease_handle **lease_handles, int count)
 		return NULL;
 	}
 
-	ls->servers = calloc(count, sizeof(struct ls_server));
-	if (!ls->servers) {
-		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
-		goto err;
-	}
-
 	ls->epoll_fd = epoll_create1(0);
 	if (ls->epoll_fd < 0) {
 		DEBUG_LOG("epoll_create failed: %s\n", strerror(errno));
+		free(ls);
+		return NULL;
+	}
+
+	ls->servers = calloc(count, sizeof(struct ls_server));
+	if (!ls->servers) {
+		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		goto err;
 	}
 

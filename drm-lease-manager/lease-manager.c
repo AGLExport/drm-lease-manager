@@ -509,6 +509,7 @@ void lm_lease_close(struct lease_handle *handle)
 	assert(handle);
 
 	struct lease *lease = (struct lease *)handle;
-	close(lease->lease_fd);
+	if (lease->lease_fd >= 0)
+		close(lease->lease_fd);
 	lease->lease_fd = -1;
 }

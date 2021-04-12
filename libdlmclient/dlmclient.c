@@ -120,7 +120,7 @@ struct dlm_lease *dlm_get_lease(const char *name)
 	}
 
 	if (!lease_send_request(lease, DLM_GET_LEASE))
-		goto err;
+		goto err_request;
 
 	if (!lease_recv_fd(lease))
 		goto err;
@@ -129,8 +129,11 @@ struct dlm_lease *dlm_get_lease(const char *name)
 
 err:
 	saved_errno = errno;
-	dlm_release_lease(lease);
+	lease_send_request(lease, DLM_RELEASE_LEASE);
 	errno = saved_errno;
+err_request:
+	close(lease->dlm_server_sock);
+	free(lease);
 	return NULL;
 }
 
