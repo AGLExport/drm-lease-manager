@@ -1,0 +1,7 @@
+Code-Review+1: Naoto YAMAGUCHI <i33399_yamaguchi@aisin-aw.co.jp>
+Code-Review+2: Damian Hobson-Garcia <dhobsong@igel.co.jp>
+Submitted-by: Damian Hobson-Garcia <dhobsong@igel.co.jp>
+Submitted-at: Fri, 16 Apr 2021 02:01:35 +0000
+Reviewed-on: https://gerrit.automotivelinux.org/gerrit/c/src/drm-lease-manager/+/26251
+Project: src/drm-lease-manager
+Branch: refs/heads/master
