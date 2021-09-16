@@ -19,8 +19,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define DEBUG_LOG(FMT, ...) \
-	dlm_log_print(true, stdout, "DEBUG: %s: " FMT, __func__, ##__VA_ARGS__)
+#define DEBUG_LOG(FMT, ...)                                               \
+	dlm_log_print(true, stdout, "DEBUG: %s: line %d: " FMT, __func__, \
+		      __LINE__, ##__VA_ARGS__)
 #define INFO_LOG(FMT, ...) \
 	dlm_log_print(false, stdout, "INFO: " FMT, ##__VA_ARGS__)
 #define WARN_LOG(FMT, ...) \
