@@ -76,6 +76,13 @@ void reset_drm_test_device(void)
 	free(test_device.resources.encoders);
 	free(test_device.plane_resources.planes);
 	free(test_device.leases.lessee_ids);
+
+	if (test_device.layout.free_on_reset) {
+		free(test_device.layout.connectors);
+		free(test_device.layout.encoders);
+		free(test_device.layout.planes);
+	}
+
 	memset(&test_device, 0, sizeof(test_device));
 }
 
@@ -85,6 +92,42 @@ void setup_test_device_layout(drmModeConnector *connectors,
 	test_device.layout.connectors = connectors;
 	test_device.layout.encoders = encoders;
 	test_device.layout.planes = planes;
+}
+
+void setup_layout_simple_test_device(int conn_cnt, int plane_cnt)
+{
+	drmModeConnector *connectors;
+	drmModeEncoder *encoders;
+	drmModePlane *planes = NULL;
+
+	ck_assert_int_ge(conn_cnt, 1);
+
+	setup_drm_test_device(conn_cnt, conn_cnt, conn_cnt, plane_cnt);
+
+	ck_assert_ptr_ne(
+	    connectors = calloc(sizeof(drmModeConnector), conn_cnt), NULL);
+	ck_assert_ptr_ne(encoders = calloc(sizeof(drmModeEncoder), conn_cnt),
+			 NULL);
+
+	if (plane_cnt > 0)
+		ck_assert_ptr_ne(
+		    planes = calloc(sizeof(drmModePlane), plane_cnt), NULL);
+
+	int crtc_mask = (1 << conn_cnt) - 1;
+	for (int i = 0; i < conn_cnt; i++) {
+		connectors[i] = (drmModeConnector)CONNECTOR(
+		    CONNECTOR_ID(i), ENCODER_ID(i), &ENCODER_ID(i), 1);
+		encoders[i] = (drmModeEncoder)ENCODER(ENCODER_ID(i), CRTC_ID(i),
+						      crtc_mask);
+	}
+
+	for (int i = 0; i < plane_cnt; i++) {
+		planes[i] =
+		    (drmModePlane)PLANE(PLANE_ID(i), 1 << (i % conn_cnt));
+	}
+
+	setup_test_device_layout(connectors, encoders, planes);
+	test_device.layout.free_on_reset = true;
 }
 
 #define GET_DRM_RESOURCE_FN(Res, res, RES, container)                       \

@@ -30,6 +30,7 @@ struct drm_device {
 		drmModeConnector *connectors;
 		drmModeEncoder *encoders;
 		drmModePlane *planes;
+		bool free_on_reset;
 	} layout;
 
 	struct {
@@ -44,6 +45,7 @@ extern struct drm_device test_device;
 bool setup_drm_test_device(int crtcs, int connectors, int encoders, int planes);
 void setup_test_device_layout(drmModeConnector *connectors,
 			      drmModeEncoder *encoders, drmModePlane *planes);
+void setup_layout_simple_test_device(int connectors, int planes);
 void reset_drm_test_device(void);
 
 drmModeConnectorPtr get_connector(int fd, uint32_t id);

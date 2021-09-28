@@ -33,7 +33,7 @@
 
 #define CHECK_LEASE_OBJECTS(lease, ...)                                     \
 	do {                                                                \
-		lm_lease_grant(lm, lease);                                  \
+		lm_lease_grant(g_lm, lease);                                \
 		uint32_t objs[] = {__VA_ARGS__};                            \
 		int nobjs = ARRAY_LEN(objs);                                \
 		ck_assert_int_eq(drmModeCreateLease_fake.arg2_val, nobjs);  \
@@ -61,6 +61,7 @@ FAKE_VALUE_FUNC(int, drmModeCreateLease, int, const uint32_t *, int, int,
 FAKE_VALUE_FUNC(int, drmModeRevokeLease, int, uint32_t);
 
 /************** Test fixutre functions *************************/
+struct lm *g_lm = NULL;
 
 static void test_setup(void)
 {
@@ -86,11 +87,34 @@ static void test_setup(void)
 	drmModeGetConnector_fake.custom_fake = get_connector;
 	drmModeGetEncoder_fake.custom_fake = get_encoder;
 	drmModeCreateLease_fake.custom_fake = create_lease;
+
+	ck_assert_msg(g_lm == NULL,
+		      "Lease manager context not clear at start of test");
 }
 
 static void test_shutdown(void)
 {
 	reset_drm_test_device();
+	lm_destroy(g_lm);
+	g_lm = NULL;
+}
+
+static struct lease_handle **create_leases(int num_leases,
+					   struct lease_config *configs)
+{
+	if (configs)
+		g_lm =
+		    lm_create_with_config(TEST_DRM_DEVICE, num_leases, configs);
+	else
+		g_lm = lm_create(TEST_DRM_DEVICE);
+
+	ck_assert_ptr_ne(g_lm, NULL);
+
+	struct lease_handle **handles;
+	ck_assert_int_eq(num_leases, lm_get_lease_handles(g_lm, &handles));
+	ck_assert_ptr_ne(handles, NULL);
+
+	return handles;
 }
 
 /************** Resource enumeration tests *************/
@@ -114,32 +138,12 @@ START_TEST(all_outputs_connected)
 {
 	int out_cnt = 2, plane_cnt = 0;
 
-	ck_assert_int_eq(
-	    setup_drm_test_device(out_cnt, out_cnt, out_cnt, plane_cnt), true);
+	setup_layout_simple_test_device(out_cnt, plane_cnt);
 
-	drmModeConnector connectors[] = {
-	    CONNECTOR(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1),
-	    CONNECTOR(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1),
-	};
-
-	drmModeEncoder encoders[] = {
-	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x3),
-	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x2),
-	};
-
-	setup_test_device_layout(connectors, encoders, NULL);
-
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(out_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(out_cnt, NULL);
 
 	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0));
 	CHECK_LEASE_OBJECTS(handles[1], CRTC_ID(1), CONNECTOR_ID(1));
-
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -170,17 +174,13 @@ START_TEST(no_outputs_connected)
 
 	setup_test_device_layout(connectors, encoders, NULL);
 
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
+	g_lm = lm_create(TEST_DRM_DEVICE);
+	ck_assert_ptr_ne(g_lm, NULL);
 
-	struct lease_handle **handles;
-	ck_assert_int_eq(out_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(out_cnt, NULL);
 
 	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(1), CONNECTOR_ID(0));
 	CHECK_LEASE_OBJECTS(handles[1], CRTC_ID(0), CONNECTOR_ID(1));
-
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -210,17 +210,10 @@ START_TEST(some_outputs_connected)
 
 	setup_test_device_layout(connectors, encoders, NULL);
 
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(out_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(out_cnt, NULL);
 
 	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0));
 	CHECK_LEASE_OBJECTS(handles[1], CRTC_ID(1), CONNECTOR_ID(1));
-
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -251,16 +244,10 @@ START_TEST(fewer_crtcs_than_connectors)
 
 	setup_test_device_layout(connectors, encoders, NULL);
 
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(lm_get_lease_handles(lm, &handles), crtc_cnt);
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(crtc_cnt, NULL);
 
 	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0));
 	CHECK_LEASE_OBJECTS(handles[1], CRTC_ID(1), CONNECTOR_ID(2));
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -275,39 +262,14 @@ START_TEST(separate_overlay_planes_by_crtc)
 
 	int out_cnt = 2, plane_cnt = 3;
 
-	ck_assert_int_eq(
-	    setup_drm_test_device(out_cnt, out_cnt, out_cnt, plane_cnt), true);
+	setup_layout_simple_test_device(out_cnt, plane_cnt);
 
-	drmModeConnector connectors[] = {
-	    CONNECTOR(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1),
-	    CONNECTOR(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1),
-	};
+	struct lease_handle **handles = create_leases(out_cnt, NULL);
 
-	drmModeEncoder encoders[] = {
-	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x1),
-	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x2),
-	};
-
-	drmModePlane planes[] = {
-	    PLANE(PLANE_ID(0), 0x2),
-	    PLANE(PLANE_ID(1), 0x1),
-	    PLANE(PLANE_ID(2), 0x2),
-	};
-
-	setup_test_device_layout(connectors, encoders, planes);
-
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(out_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
-
-	CHECK_LEASE_OBJECTS(handles[0], PLANE_ID(1), CRTC_ID(0),
+	CHECK_LEASE_OBJECTS(handles[0], PLANE_ID(0), PLANE_ID(2), CRTC_ID(0),
 			    CONNECTOR_ID(0));
-	CHECK_LEASE_OBJECTS(handles[1], PLANE_ID(0), PLANE_ID(2), CRTC_ID(1),
+	CHECK_LEASE_OBJECTS(handles[1], PLANE_ID(1), CRTC_ID(1),
 			    CONNECTOR_ID(1));
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -344,18 +306,12 @@ START_TEST(reject_planes_shared_between_multiple_crtcs)
 
 	setup_test_device_layout(connectors, encoders, planes);
 
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(out_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(out_cnt, NULL);
 
 	CHECK_LEASE_OBJECTS(handles[0], PLANE_ID(1), CRTC_ID(0),
 			    CONNECTOR_ID(0));
 	CHECK_LEASE_OBJECTS(handles[1], PLANE_ID(0), CRTC_ID(1),
 			    CONNECTOR_ID(1));
-	lm_destroy(lm);
 }
 END_TEST
 
@@ -382,32 +338,15 @@ static void add_connector_enum_tests(Suite *s)
  */
 START_TEST(create_and_revoke_lease)
 {
-	int lease_cnt = 2;
-	bool res = setup_drm_test_device(lease_cnt, lease_cnt, lease_cnt, 0);
-	ck_assert_int_eq(res, true);
+	int lease_cnt = 2, plane_cnt = 0;
 
-	drmModeConnector connectors[] = {
-	    CONNECTOR(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1),
-	    CONNECTOR(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1),
-	};
+	setup_layout_simple_test_device(lease_cnt, plane_cnt);
 
-	drmModeEncoder encoders[] = {
-	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x1),
-	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x2),
-	};
-
-	setup_test_device_layout(connectors, encoders, NULL);
-
-	struct lm *lm = lm_create(TEST_DRM_DEVICE);
-	ck_assert_ptr_ne(lm, NULL);
-
-	struct lease_handle **handles;
-	ck_assert_int_eq(lease_cnt, lm_get_lease_handles(lm, &handles));
-	ck_assert_ptr_ne(handles, NULL);
+	struct lease_handle **handles = create_leases(lease_cnt, NULL);
 
 	for (int i = 0; i < lease_cnt; i++) {
-		ck_assert_int_ge(lm_lease_grant(lm, handles[i]), 0);
-		lm_lease_revoke(lm, handles[i]);
+		ck_assert_int_ge(lm_lease_grant(g_lm, handles[i]), 0);
+		lm_lease_revoke(g_lm, handles[i]);
 	}
 
 	ck_assert_int_eq(drmModeRevokeLease_fake.call_count, lease_cnt);
