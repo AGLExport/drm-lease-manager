@@ -20,6 +20,9 @@
 struct lm;
 
 struct lm *lm_create(const char *path);
+struct lm *lm_create_with_config(const char *path, int leases,
+				 struct lease_config *configs);
+
 void lm_destroy(struct lm *lm);
 
 int lm_get_lease_handles(struct lm *lm, struct lease_handle ***lease_handles);

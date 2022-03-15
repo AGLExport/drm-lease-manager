@@ -15,9 +15,18 @@
 
 #ifndef DRM_LEASE_H
 #define DRM_LEASE_H
+#include <stdint.h>
 
 struct lease_handle {
 	char *name;
 	void *user_data;
 };
+
+struct lease_config {
+	char *lease_name;
+
+	int ncids;
+	uint32_t *connector_ids;
+};
+
 #endif
