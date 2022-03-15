@@ -25,6 +25,8 @@
 #include "test-drm-device.h"
 #include "test-helpers.h"
 
+#define INVALID_OBJECT_ID (0)
+
 /* CHECK_LEASE_OBJECTS
  *
  * Checks the list of objects associated with a given lease_index.
@@ -429,6 +431,85 @@ static void add_lease_management_tests(Suite *s)
 	suite_add_tcase(s, tc);
 }
 
+/***************** Lease Configuration Tests *************/
+
+/* multiple_connector_lease */
+/* Test details: Create a lease with multipe connectors
+ * Expected results: a lease is created with the CRTC and connector ID for both
+ *                   connectors.
+ */
+START_TEST(multiple_connector_lease)
+{
+	int out_cnt = 2, plane_cnt = 0, lease_cnt = 1;
+
+	create_simple_drm_device(out_cnt, plane_cnt);
+
+	struct lease_config lconfig = {
+	    .lease_name = "Lease Config Test 1",
+	    .ncids = 2,
+	    .connector_ids = (uint32_t[]){CONNECTOR_ID(0), CONNECTOR_ID(1)},
+	};
+
+	struct lease_handle **handles = create_leases(lease_cnt, &lconfig);
+
+	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0), CRTC_ID(1),
+			    CONNECTOR_ID(1));
+}
+END_TEST
+
+/* single_failed_lease */
+/* Test details: Create 2 lease configs. One with valid data, one without.
+ * Expected results: A handle is created for the single valid lease.
+ */
+START_TEST(single_failed_lease)
+{
+	int out_cnt = 3, plane_cnt = 0, success_lease_cnt = 1;
+
+	create_simple_drm_device(out_cnt, plane_cnt);
+
+	struct lease_config lconfigs[2] = {
+	    [0] =
+		{
+		    .lease_name = "Lease Config Test 1",
+		    .ncids = 1,
+		    .connector_ids = (uint32_t[]){INVALID_OBJECT_ID},
+		},
+	    [1] =
+		{
+		    .lease_name = "Lease Config Test 2",
+		    .ncids = 2,
+		    .connector_ids =
+			(uint32_t[]){CONNECTOR_ID(0), CONNECTOR_ID(1)},
+		},
+	};
+
+	/* Expect fewer leases than configurations supplied, so explicitly
+	 * create and check leases. */
+	g_lm = lm_create_with_config(TEST_DRM_DEVICE, ARRAY_LEN(lconfigs),
+				     lconfigs);
+	ck_assert_ptr_ne(g_lm, NULL);
+
+	struct lease_handle **handles;
+	ck_assert_int_eq(success_lease_cnt,
+			 lm_get_lease_handles(g_lm, &handles));
+	ck_assert_ptr_ne(handles, NULL);
+
+	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0), CRTC_ID(1),
+			    CONNECTOR_ID(1));
+}
+END_TEST
+
+static void add_lease_config_tests(Suite *s)
+{
+	TCase *tc = tcase_create("Lease configuration");
+
+	tcase_add_checked_fixture(tc, test_setup, test_shutdown);
+
+	tcase_add_test(tc, multiple_connector_lease);
+	tcase_add_test(tc, single_failed_lease);
+	suite_add_tcase(s, tc);
+}
+
 int main(void)
 {
 	int number_failed;
@@ -439,6 +520,7 @@ int main(void)
 
 	add_connector_enum_tests(s);
 	add_lease_management_tests(s);
+	add_lease_config_tests(s);
 
 	sr = srunner_create(s);
 	srunner_run_all(sr, CK_NORMAL);
