@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <xf86drmMode.h>
 
 #include "test-drm-device.h"
@@ -105,7 +106,6 @@ GET_DRM_RESOURCE_FN(Plane, plane, PLANE, plane_resources)
 int create_lease(int fd, const uint32_t *objects, int num_objects, int flags,
 		 uint32_t *lessee_id)
 {
-	UNUSED(fd);
 	UNUSED(objects);
 	UNUSED(num_objects);
 	UNUSED(flags);
@@ -118,5 +118,5 @@ int create_lease(int fd, const uint32_t *objects, int num_objects, int flags,
 
 	test_device.leases.count++;
 
-	return 0;
+	return dup(fd);
 }
