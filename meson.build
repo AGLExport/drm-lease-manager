@@ -14,6 +14,7 @@ pkg = import('pkgconfig')
 compiler_flags = [
     '-Wstrict-prototypes',
     '-Wmissing-prototypes',
+    '-Wno-missing-field-initializers',
 ]
 
 #Setup and create runtime path

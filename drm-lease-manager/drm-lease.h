@@ -27,6 +27,9 @@ struct lease_config {
 
 	int ncids;
 	uint32_t *connector_ids;
+
+	int cnames;
+	char **connector_names;
 };
 
 #endif
