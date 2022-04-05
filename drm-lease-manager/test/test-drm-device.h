@@ -63,10 +63,14 @@ int create_lease(int fd, const uint32_t *objects, int num_objects, int flags,
 #define PLANE_ID(x) (test_device.plane_resources.planes[x])
 #define LESSEE_ID(x) (test_device.leases.lessee_ids[x])
 
-#define CONNECTOR(cid, eid, encs, enc_cnt)                   \
-	{                                                    \
-		.connector_id = cid, .encoder_id = eid,      \
-		.count_encoders = enc_cnt, .encoders = encs, \
+#define CONNECTOR(cid, eid, encs, enc_cnt) \
+	CONNECTOR_FULL(cid, eid, encs, enc_cnt, DRM_MODE_CONNECTOR_Unknown, cid)
+
+#define CONNECTOR_FULL(cid, eid, encs, enc_cnt, type, type_id)        \
+	{                                                             \
+		.connector_id = cid, .encoder_id = eid,               \
+		.count_encoders = enc_cnt, .encoders = encs,          \
+		.connector_type = type, .connector_type_id = type_id, \
 	}
 
 #define ENCODER(eid, crtc, crtc_mask)               \
