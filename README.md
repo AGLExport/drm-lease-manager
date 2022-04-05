@@ -24,6 +24,41 @@ The basic build procedure is as follows:
 
 `<build_dir>` can be any directory name, but `build` is commonly used.
 
+## Configuration
+
+The drm-lease-manager configuration file allows the user to specify the mapping
+of DRM connectors to DRM leases. The location of the configuration file can
+be specified with the `-c` command line option.
+
+The configuration file consists of a list of lease definitions, containing a name
+of the lease and a list of the included connector names.
+
+Each list entry is of the following form:
+
+```toml
+[[lease]]    
+name="My lease"
+connectors=["connector 1", "connector 2"]
+```
+* Note: quotes around all string values are mandatory.
+
+This will create a lease named `My lease` and add the two connectors `connector 1` and
+`connector 2` to the lease.  
+If there is no connector with either of the names exists on the system, that name
+will be omitted from the lease.
+
+### No configuration default
+
+If no configuration file is specified one DRM lease will be created for each connector
+on the DRM device (up to the number of available CRTCs).
+
+The names of the DRM leases will have the following pattern:
+
+    <device>-<connector name>
+
+So, for example, a DRM lease for the first LVDS device on the device `/dev/dri/card0` would be named
+`card0-LVDS-1`.
+
 ## Running
 
 Once installed, running the following command will start the DRM Lease Manager daemon
@@ -32,17 +67,6 @@ Once installed, running the following command will start the DRM Lease Manager d
 
 If no DRM device is specified, `/dev/dri/card0` will be used.  
 More detailed options can be displayed by specifying the `-h` flag.
-
-### Lease naming
-
-One DRM lease will be created for each connector on the DRM device (up to the number of available CRTCs).
-
-The names of the DRM leases will have the following pattern:
-
-    <device>-<connector name>
-
-So, for example, a DRM lease for the first LVDS device on the device `/dev/dri/card0` would be named
-`card0-LVDS-1`.
 
 ### Dynamic lease transfer
 
