@@ -26,5 +26,17 @@ lm_test = executable('lease-manager-test',
            dependencies: [check_dep, fff_dep, dlmcommon_dep, drm_dep],
            include_directories: ls_inc)
 
+lc_objects = main.extract_objects(lease_config_files)
+lc_test_sources = [
+    'lease-config-test.c'
+]
+
+lc_test = executable('lease-config-test',
+           sources: lc_test_sources,
+           objects: lc_objects,
+           dependencies: [check_dep, dlmcommon_dep],
+           include_directories: ls_inc)
+
 test('DRM Lease manager - socket server test', ls_test, is_parallel: false)
 test('DRM Lease manager - DRM interface test', lm_test)
+test('DRM Lease manager - config parse test', lc_test)
