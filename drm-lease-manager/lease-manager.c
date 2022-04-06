@@ -515,6 +515,29 @@ err:
 	return NULL;
 }
 
+static struct lm *drm_find_drm_device(const char *device)
+{
+	drmDevicePtr devices[64];
+	int ndevs;
+	struct lm *lm = NULL;
+
+	if (device)
+		return drm_device_get_resources(device);
+
+	ndevs = drmGetDevices2(0, devices, 64);
+
+	for (int i = 0; i < ndevs; i++) {
+		lm = drm_device_get_resources(
+		    devices[i]->nodes[DRM_NODE_PRIMARY]);
+		if (lm)
+			break;
+	}
+
+	drmFreeDevices(devices, ndevs);
+
+	return lm;
+}
+
 static int lm_create_leases(struct lm *lm, int num_leases,
 			    const struct lease_config *configs)
 {
@@ -544,10 +567,12 @@ struct lm *lm_create_with_config(const char *device, int num_leases,
 				 struct lease_config *configs)
 {
 	struct lease_config *default_configs = NULL;
-	struct lm *lm = drm_device_get_resources(device);
+	struct lm *lm = drm_find_drm_device(device);
 
-	if (!lm)
+	if (!lm) {
+		ERROR_LOG("No available DRM device found\n");
 		return NULL;
+	}
 
 	if (configs == NULL || num_leases == 0) {
 		num_leases = create_default_lease_configs(lm, &default_configs);

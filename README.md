@@ -65,8 +65,8 @@ Once installed, running the following command will start the DRM Lease Manager d
 
     drm-lease-manager [<path DRM device>]
 
-If no DRM device is specified, `/dev/dri/card0` will be used.  
-More detailed options can be displayed by specifying the `-h` flag.
+If no DRM device is specified, the first available device capabale of modesetting will
+be used.  More detailed options can be displayed by specifying the `-h` flag.
 
 ### Dynamic lease transfer
 

@@ -48,7 +48,7 @@ const struct option options[] = {
 
 int main(int argc, char **argv)
 {
-	char *device = "/dev/dri/card0";
+	char *device = NULL;
 	char *config_file = "/etc/drm-lease-manager.toml";
 
 	bool debug_log = false;
