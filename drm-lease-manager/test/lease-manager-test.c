@@ -61,6 +61,7 @@ FAKE_VOID_FUNC(drmModeFreeEncoder, drmModeEncoderPtr);
 FAKE_VALUE_FUNC(int, drmModeCreateLease, int, const uint32_t *, int, int,
 		uint32_t *);
 FAKE_VALUE_FUNC(int, drmModeRevokeLease, int, uint32_t);
+FAKE_VALUE_FUNC(int, drmSetClientCap, int, uint64_t, uint64_t);
 
 /************** Test fixutre functions *************************/
 struct lm *g_lm = NULL;
@@ -89,6 +90,8 @@ static void test_setup(void)
 	drmModeGetConnector_fake.custom_fake = get_connector;
 	drmModeGetEncoder_fake.custom_fake = get_encoder;
 	drmModeCreateLease_fake.custom_fake = create_lease;
+
+	drmSetClientCap_fake.return_val = 0;
 
 	ck_assert_msg(g_lm == NULL,
 		      "Lease manager context not clear at start of test");
@@ -524,6 +527,73 @@ START_TEST(named_connector_config)
 }
 END_TEST
 
+/* config plane sharing */
+/* Test details: Add overlay planes to leases. Some planes are shared between
+ *               multiple CRTCs. These planes are explicitly assigned to a
+ * connector. Expected results: The leases contain all of the unique planes for
+ * each CRTC. Shared planes are also included as defined by the lease
+ *                   configuration.
+ */
+START_TEST(config_plane_sharing)
+{
+
+	int out_cnt = 2, plane_cnt = 3, lease_cnt = 2;
+
+	ck_assert_int_eq(
+	    setup_drm_test_device(out_cnt, out_cnt, out_cnt, plane_cnt), true);
+
+	drmModeConnector connectors[] = {
+	    CONNECTOR_FULL(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1,
+			   DRM_MODE_CONNECTOR_HDMIA, 1),
+	    CONNECTOR_FULL(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1,
+			   DRM_MODE_CONNECTOR_VGA, 3),
+	};
+
+	drmModeEncoder encoders[] = {
+	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x1),
+	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x2),
+	};
+
+	drmModePlane planes[] = {
+	    PLANE(PLANE_ID(0), 0x2),
+	    PLANE(PLANE_ID(1), 0x1),
+	    PLANE(PLANE_ID(2), 0x3),
+	};
+
+	setup_test_device_layout(connectors, encoders, planes);
+
+	struct lease_config lconfig[] = {
+	    [0] =
+		{
+		    .lease_name = "Lease Config Test 1",
+		    .nconnectors = 1,
+		    .connectors =
+			(struct connector_config[]){
+			    {.name = "HDMI-A-1",
+			     .nplanes = 2,
+			     .planes = (uint32_t[]){PLANE_ID(1), PLANE_ID(2)}},
+			},
+		},
+	    [1] =
+		{
+		    .lease_name = "Lease Config Test 2",
+		    .nconnectors = 1,
+		    .connectors =
+			(struct connector_config[]){
+			    {.name = "VGA-3"},
+			},
+		},
+	};
+
+	struct lease_handle **handles = create_leases(lease_cnt, lconfig);
+
+	CHECK_LEASE_OBJECTS(handles[0], PLANE_ID(1), PLANE_ID(2), CRTC_ID(0),
+			    CONNECTOR_ID(0));
+	CHECK_LEASE_OBJECTS(handles[1], PLANE_ID(0), CRTC_ID(1),
+			    CONNECTOR_ID(1));
+}
+END_TEST
+
 static void add_lease_config_tests(Suite *s)
 {
 	TCase *tc = tcase_create("Lease configuration");
@@ -533,6 +603,7 @@ static void add_lease_config_tests(Suite *s)
 	tcase_add_test(tc, multiple_connector_lease);
 	tcase_add_test(tc, single_failed_lease);
 	tcase_add_test(tc, named_connector_config);
+	tcase_add_test(tc, config_plane_sharing);
 	suite_add_tcase(s, tc);
 }
 
