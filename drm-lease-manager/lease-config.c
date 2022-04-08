@@ -23,6 +23,26 @@
 
 #define CONFIG_ERROR(x, ...) ERROR_LOG("%s: " x, filename, ##__VA_ARGS__)
 
+static bool populate_connector_planes(struct connector_config *config,
+				      toml_array_t *planes)
+{
+	config->nplanes = toml_array_nelem(planes);
+	config->planes = calloc(config->nplanes, sizeof(uint32_t));
+	if (!config->planes) {
+		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
+		return false;
+	}
+
+	for (int j = 0; j < config->nplanes; j++) {
+		toml_datum_t plane = toml_int_at(planes, j);
+		if (!plane.ok) {
+			return false;
+		}
+		config->planes[j] = plane.u.i;
+	}
+	return true;
+}
+
 static bool populate_connector_config(struct lease_config *config,
 				      toml_table_t *global_table,
 				      toml_array_t *conns)
@@ -55,6 +75,14 @@ static bool populate_connector_config(struct lease_config *config,
 		    toml_bool_in(conn_config_data, "optional");
 		if (optional.ok)
 			config->connectors[i].optional = optional.u.b;
+
+		toml_array_t *planes =
+		    toml_array_in(conn_config_data, "planes");
+		if (planes && !populate_connector_planes(conn_config, planes)) {
+			ERROR_LOG("Invalid plane id for connector: %s\n",
+				  conn_config->name);
+			return false;
+		}
 	}
 	return true;
 }
