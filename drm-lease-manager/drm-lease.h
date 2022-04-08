@@ -26,6 +26,8 @@ struct lease_handle {
 struct connector_config {
 	char *name;
 	bool optional;
+	int nplanes;
+	uint32_t *planes;
 };
 
 struct lease_config {

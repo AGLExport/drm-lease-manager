@@ -216,17 +216,48 @@ static bool drm_find_connector(struct lm *lm, char *name, uint32_t *id)
 	return false;
 }
 
-static bool lease_add_planes(struct lm *lm, struct lease *lease, int crtc_index)
+static void config_get_planes(struct lm *lm,
+			      const struct connector_config *config,
+			      int *nplanes, uint32_t **planes)
 {
-	for (uint32_t i = 0; i < lm->drm_plane_resource->count_planes; i++) {
-		uint32_t plane_id = lm->drm_plane_resource->planes[i];
+	if (config && config->planes) {
+		*nplanes = config->nplanes;
+		*planes = config->planes;
+	} else {
+		*nplanes = (int)lm->drm_plane_resource->count_planes;
+		*planes = lm->drm_plane_resource->planes;
+	}
+}
+
+static bool lease_add_planes(struct lm *lm, struct lease *lease,
+			     uint32_t crtc_index,
+			     const struct connector_config *con_config)
+{
+	int nplanes;
+	uint32_t *planes;
+	uint32_t crtc_mask = (1 << crtc_index);
+
+	/* Only allow shared planes when plane list is explicitly set */
+	bool allow_shared = con_config && con_config->planes;
+
+	config_get_planes(lm, con_config, &nplanes, &planes);
+
+	for (int i = 0; i < nplanes; i++) {
+		uint32_t plane_id = planes[i];
 		drmModePlanePtr plane = drmModeGetPlane(lm->drm_fd, plane_id);
 
-		assert(plane);
+		if (!plane) {
+			ERROR_LOG(
+			    "Unknown plane id %d configured in lease: %s\n",
+			    plane_id, lease->base.name);
+			return false;
+		}
 
-		// Exclude planes that can be used with multiple CRTCs for now
-		if (plane->possible_crtcs == (1u << crtc_index)) {
-			lease->object_ids[lease->nobject_ids++] = plane_id;
+		if (plane->possible_crtcs & crtc_mask) {
+			bool shared_plane = plane->possible_crtcs != crtc_mask;
+			if (allow_shared || !shared_plane)
+				lease->object_ids[lease->nobject_ids++] =
+				    plane_id;
 		}
 		drmModeFreePlane(plane);
 	}
@@ -404,7 +435,7 @@ static struct lease *lease_create(struct lm *lm,
 			goto err;
 		}
 
-		if (!lease_add_planes(lm, lease, crtc_index))
+		if (!lease_add_planes(lm, lease, crtc_index, con_config))
 			goto err;
 
 		uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
@@ -484,6 +515,13 @@ static struct lm *drm_device_get_resources(const char *device)
 	if (lm->drm_fd < 0) {
 		ERROR_LOG("Cannot open DRM device (%s): %s\n", device,
 			  strerror(errno));
+		goto err;
+	}
+
+	/* Enable universal planes so that ALL planes, even primary and cursor
+	 * planes can be assigned from lease configurations. */
+	if (drmSetClientCap(lm->drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+		DEBUG_LOG("drmSetClientCap failed\n");
 		goto err;
 	}
 

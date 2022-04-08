@@ -74,6 +74,43 @@ START_TEST(parse_leases)
 }
 END_TEST
 
+START_TEST(connector_config)
+{
+	ck_assert_ptr_ne(config_file, NULL);
+
+	char test_data[] = "[[lease]]\n"
+			   "name = \"lease 1\"\n"
+			   "connectors = [\"1\", \"b\",\"gamma\" ]\n"
+			   "[b]\n"
+			   "optional = true\n"
+			   "planes = [1, 4, 3]\n";
+
+	write(config_fd, test_data, sizeof(test_data));
+
+	struct lease_config *config = NULL;
+	int nconfigs = parse_config(config_file, &config);
+
+	ck_assert_int_eq(nconfigs, 1);
+	ck_assert_ptr_ne(config, NULL);
+
+	ck_assert_str_eq(config[0].lease_name, "lease 1");
+	ck_assert_int_eq(config[0].nconnectors, 3);
+	ck_assert_str_eq(config[0].connectors[0].name, "1");
+	ck_assert_str_eq(config[0].connectors[1].name, "b");
+	ck_assert_str_eq(config[0].connectors[2].name, "gamma");
+
+	ck_assert(!config[0].connectors[0].optional);
+	ck_assert(config[0].connectors[1].optional);
+	ck_assert(!config[0].connectors[2].optional);
+
+	ck_assert_int_eq(config[0].connectors[1].nplanes, 3);
+	ck_assert_int_eq(config[0].connectors[1].planes[0], 1);
+	ck_assert_int_eq(config[0].connectors[1].planes[1], 4);
+	ck_assert_int_eq(config[0].connectors[1].planes[2], 3);
+
+	release_config(nconfigs, config);
+}
+END_TEST
 static void add_parse_tests(Suite *s)
 {
 	TCase *tc = tcase_create("Config file parsing tests");
@@ -81,6 +118,7 @@ static void add_parse_tests(Suite *s)
 	tcase_add_checked_fixture(tc, test_setup, test_shutdown);
 
 	tcase_add_test(tc, parse_leases);
+	tcase_add_test(tc, connector_config);
 	suite_add_tcase(s, tc);
 }
 
