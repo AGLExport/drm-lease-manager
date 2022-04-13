@@ -360,6 +360,47 @@ START_TEST(create_and_revoke_lease)
 }
 END_TEST
 
+/* Test lease names */
+/* Test details: Create some leases and verify that they have the correct names
+ * Expected results: lease names should match the expected values
+ */
+START_TEST(verify_lease_names)
+{
+	int lease_cnt = 3;
+	bool res = setup_drm_test_device(lease_cnt, lease_cnt, lease_cnt, 0);
+	ck_assert_int_eq(res, true);
+
+	drmModeConnector connectors[] = {
+	    CONNECTOR_FULL(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1,
+			   DRM_MODE_CONNECTOR_HDMIA, 1),
+	    CONNECTOR_FULL(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1,
+			   DRM_MODE_CONNECTOR_LVDS, 3),
+	    CONNECTOR_FULL(CONNECTOR_ID(2), ENCODER_ID(2), &ENCODER_ID(2), 1,
+			   DRM_MODE_CONNECTOR_eDP, 6),
+	};
+
+	drmModeEncoder encoders[] = {
+	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x7),
+	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x7),
+	    ENCODER(ENCODER_ID(2), CRTC_ID(2), 0x7),
+	};
+
+	setup_test_device_layout(connectors, encoders, NULL);
+
+	const char *expected_names[] = {
+	    "card3-HDMI-A-1",
+	    "card3-LVDS-3",
+	    "card3-eDP-6",
+	};
+
+	struct lease_handle **handles = create_leases(lease_cnt, NULL);
+
+	for (int i = 0; i < lease_cnt; i++) {
+		ck_assert_str_eq(handles[i]->name, expected_names[i]);
+	}
+}
+END_TEST
+
 static void add_lease_management_tests(Suite *s)
 {
 	TCase *tc = tcase_create("Lease management");
@@ -367,6 +408,7 @@ static void add_lease_management_tests(Suite *s)
 	tcase_add_checked_fixture(tc, test_setup, test_shutdown);
 
 	tcase_add_test(tc, create_and_revoke_lease);
+	tcase_add_test(tc, verify_lease_names);
 	suite_add_tcase(s, tc);
 }
 
@@ -438,6 +480,46 @@ START_TEST(single_failed_lease)
 }
 END_TEST
 
+/* named_connector_config */
+/* Test details: Test specifying connectors by name in config
+ * Expected results: A handle is created for each named connector
+ */
+
+START_TEST(named_connector_config)
+{
+	int out_cnt = 2, plane_cnt = 0, lease_cnt = 1;
+
+	ck_assert_int_eq(
+	    setup_drm_test_device(out_cnt, out_cnt, out_cnt, plane_cnt), true);
+
+	drmModeConnector connectors[] = {
+	    CONNECTOR_FULL(CONNECTOR_ID(0), ENCODER_ID(0), &ENCODER_ID(0), 1,
+			   DRM_MODE_CONNECTOR_HDMIA, 1),
+	    CONNECTOR_FULL(CONNECTOR_ID(1), ENCODER_ID(1), &ENCODER_ID(1), 1,
+			   DRM_MODE_CONNECTOR_VGA, 3),
+	};
+
+	drmModeEncoder encoders[] = {
+	    ENCODER(ENCODER_ID(0), CRTC_ID(0), 0x1),
+	    ENCODER(ENCODER_ID(1), CRTC_ID(1), 0x2),
+	};
+
+	setup_test_device_layout(connectors, encoders, NULL);
+
+	struct lease_config lconfig = {
+	    .lease_name = "Lease Config Test 1",
+	    .cnames = 2,
+	    .connector_names = (char *[]){"HDMI-A-1", "VGA-3"},
+	};
+
+	struct lease_handle **handles = create_leases(lease_cnt, &lconfig);
+
+	ck_assert_str_eq(handles[0]->name, lconfig.lease_name);
+	CHECK_LEASE_OBJECTS(handles[0], CRTC_ID(0), CONNECTOR_ID(0), CRTC_ID(1),
+			    CONNECTOR_ID(1));
+}
+END_TEST
+
 static void add_lease_config_tests(Suite *s)
 {
 	TCase *tc = tcase_create("Lease configuration");
@@ -446,6 +528,7 @@ static void add_lease_config_tests(Suite *s)
 
 	tcase_add_test(tc, multiple_connector_lease);
 	tcase_add_test(tc, single_failed_lease);
+	tcase_add_test(tc, named_connector_config);
 	suite_add_tcase(s, tc);
 }
 
