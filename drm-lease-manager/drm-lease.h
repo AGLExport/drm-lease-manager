@@ -22,14 +22,18 @@ struct lease_handle {
 	void *user_data;
 };
 
+struct connector_config {
+	char *name;
+};
+
 struct lease_config {
 	char *lease_name;
 
 	int ncids;
 	uint32_t *connector_ids;
 
-	int cnames;
-	char **connector_names;
+	int nconnectors;
+	struct connector_config *connectors;
 };
 
 #endif
