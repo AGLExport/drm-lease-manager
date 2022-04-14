@@ -343,7 +343,8 @@ static struct lease *lease_create(struct lm *lm,
 		goto err;
 	}
 
-	int nconnectors = config->cnames > 0 ? config->cnames : config->ncids;
+	int nconnectors =
+	    config->nconnectors > 0 ? config->nconnectors : config->ncids;
 	int nobjects = lm->drm_plane_resource->count_planes +
 		       nconnectors * DRM_OBJECTS_PER_CONNECTOR;
 
@@ -356,8 +357,8 @@ static struct lease *lease_create(struct lm *lm,
 	for (int i = 0; i < nconnectors; i++) {
 		uint32_t cid;
 
-		if (config->cnames > 0) {
-			char *connector_name = config->connector_names[i];
+		if (config->nconnectors > 0) {
+			char *connector_name = config->connectors[i].name;
 
 			if (!drm_find_connector(lm, connector_name, &cid)) {
 				WARN_LOG("Lease: %s, "

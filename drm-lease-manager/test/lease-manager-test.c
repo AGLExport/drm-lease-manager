@@ -508,8 +508,12 @@ START_TEST(named_connector_config)
 
 	struct lease_config lconfig = {
 	    .lease_name = "Lease Config Test 1",
-	    .cnames = 2,
-	    .connector_names = (char *[]){"HDMI-A-1", "VGA-3"},
+	    .nconnectors = 2,
+	    .connectors =
+		(struct connector_config[]){
+		    {.name = "HDMI-A-1"},
+		    {.name = "VGA-3"},
+		},
 	};
 
 	struct lease_handle **handles = create_leases(lease_cnt, &lconfig);
