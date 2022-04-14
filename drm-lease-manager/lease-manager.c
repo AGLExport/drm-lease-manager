@@ -356,11 +356,27 @@ static struct lease *lease_create(struct lm *lm,
 
 	for (int i = 0; i < nconnectors; i++) {
 		uint32_t cid;
+		struct connector_config *con_config = NULL;
 
-		if (config->nconnectors > 0) {
-			char *connector_name = config->connectors[i].name;
+		if (config->nconnectors > 0)
+			con_config = &config->connectors[i];
 
-			if (!drm_find_connector(lm, connector_name, &cid)) {
+		if (con_config) {
+			char *connector_name = con_config->name;
+			bool optional = con_config->optional;
+
+			bool found =
+			    drm_find_connector(lm, connector_name, &cid);
+
+			bool missing_mandatory = !found && !optional;
+			bool missing_optional = !found && optional;
+
+			if (missing_mandatory) {
+				ERROR_LOG("Lease: %s, "
+					  "mandatory connector %s not found\n",
+					  config->lease_name, connector_name);
+				goto err;
+			} else if (missing_optional) {
 				WARN_LOG("Lease: %s, "
 					 "unknown DRM connector: %s\n",
 					 config->lease_name, connector_name);
