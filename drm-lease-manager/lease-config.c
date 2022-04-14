@@ -23,24 +23,26 @@
 
 #define CONFIG_ERROR(x, ...) ERROR_LOG("%s: " x, filename, ##__VA_ARGS__)
 
-static bool populate_connector_names(struct lease_config *config,
-				     toml_array_t *conns)
+static bool populate_connector_config(struct lease_config *config,
+				      toml_array_t *conns)
 {
-	int cnames = toml_array_nelem(conns);
-	config->connector_names = calloc(cnames, sizeof(char *));
-	if (!config->connector_names) {
+	int nconnectors = toml_array_nelem(conns);
+	config->connectors = calloc(nconnectors, sizeof(*config->connectors));
+	if (!config->connectors) {
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		return false;
 	}
 
-	config->cnames = cnames;
+	config->nconnectors = nconnectors;
 
-	for (int i = 0; i < config->cnames; i++) {
+	for (int i = 0; i < config->nconnectors; i++) {
 		toml_datum_t conn = toml_string_at(conns, i);
 		if (!conn.ok) {
+			ERROR_LOG("Invalid connector in lease %s: idx:%d\n",
+				  config->lease_name, i);
 			return false;
 		}
-		config->connector_names[i] = conn.u.s;
+		config->connectors[i].name = conn.u.s;
 	}
 	return true;
 }
@@ -90,8 +92,8 @@ int parse_config(char *filename, struct lease_config **parsed_config)
 		config[i].lease_name = name.u.s;
 
 		toml_array_t *conns = toml_array_in(lease, "connectors");
-		if (conns && !populate_connector_names(&config[i], conns)) {
-			CONFIG_ERROR("Non string connector name in lease: %s\n",
+		if (conns && !populate_connector_config(&config[i], conns)) {
+			CONFIG_ERROR("Error configuring lease: %s\n",
 				     config[i].lease_name);
 			goto err;
 		}
@@ -112,9 +114,9 @@ void release_config(int num_leases, struct lease_config *config)
 	for (int i = 0; i < num_leases; i++) {
 		struct lease_config *c = &config[i];
 		free(c->lease_name);
-		for (int j = 0; j < c->cnames; j++)
-			free(c->connector_names[j]);
-		free(c->connector_names);
+		for (int j = 0; j < c->nconnectors; j++)
+			free(c->connectors[j].name);
+		free(c->connectors);
 	}
 	free(config);
 }

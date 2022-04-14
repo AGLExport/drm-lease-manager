@@ -61,14 +61,14 @@ START_TEST(parse_leases)
 	ck_assert_ptr_ne(config, NULL);
 
 	ck_assert_str_eq(config[0].lease_name, "lease 1");
-	ck_assert_int_eq(config[0].cnames, 3);
-	ck_assert_str_eq(config[0].connector_names[0], "1");
-	ck_assert_str_eq(config[0].connector_names[1], "b");
-	ck_assert_str_eq(config[0].connector_names[2], "gamma");
+	ck_assert_int_eq(config[0].nconnectors, 3);
+	ck_assert_str_eq(config[0].connectors[0].name, "1");
+	ck_assert_str_eq(config[0].connectors[1].name, "b");
+	ck_assert_str_eq(config[0].connectors[2].name, "gamma");
 
 	ck_assert_str_eq(config[1].lease_name, "lease 2");
-	ck_assert_int_eq(config[1].cnames, 1);
-	ck_assert_str_eq(config[1].connector_names[0], "connector 3");
+	ck_assert_int_eq(config[1].nconnectors, 1);
+	ck_assert_str_eq(config[1].connectors[0].name, "connector 3");
 
 	release_config(nconfigs, config);
 }
