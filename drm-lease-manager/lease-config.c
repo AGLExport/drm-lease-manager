@@ -24,6 +24,7 @@
 #define CONFIG_ERROR(x, ...) ERROR_LOG("%s: " x, filename, ##__VA_ARGS__)
 
 static bool populate_connector_config(struct lease_config *config,
+				      toml_table_t *global_table,
 				      toml_array_t *conns)
 {
 	int nconnectors = toml_array_nelem(conns);
@@ -36,13 +37,24 @@ static bool populate_connector_config(struct lease_config *config,
 	config->nconnectors = nconnectors;
 
 	for (int i = 0; i < config->nconnectors; i++) {
+		struct connector_config *conn_config = &config->connectors[i];
 		toml_datum_t conn = toml_string_at(conns, i);
 		if (!conn.ok) {
 			ERROR_LOG("Invalid connector in lease %s: idx:%d\n",
 				  config->lease_name, i);
 			return false;
 		}
-		config->connectors[i].name = conn.u.s;
+		conn_config->name = conn.u.s;
+
+		toml_table_t *conn_config_data =
+		    toml_table_in(global_table, conn.u.s);
+		if (!conn_config_data)
+			continue;
+
+		toml_datum_t optional =
+		    toml_bool_in(conn_config_data, "optional");
+		if (optional.ok)
+			config->connectors[i].optional = optional.u.b;
 	}
 	return true;
 }
@@ -92,7 +104,8 @@ int parse_config(char *filename, struct lease_config **parsed_config)
 		config[i].lease_name = name.u.s;
 
 		toml_array_t *conns = toml_array_in(lease, "connectors");
-		if (conns && !populate_connector_config(&config[i], conns)) {
+		if (conns &&
+		    !populate_connector_config(&config[i], t_config, conns)) {
 			CONFIG_ERROR("Error configuring lease: %s\n",
 				     config[i].lease_name);
 			goto err;
