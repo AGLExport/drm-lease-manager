@@ -15,6 +15,7 @@
 
 #ifndef DRM_LEASE_H
 #define DRM_LEASE_H
+#include <stdbool.h>
 #include <stdint.h>
 
 struct lease_handle {
@@ -24,6 +25,7 @@ struct lease_handle {
 
 struct connector_config {
 	char *name;
+	bool optional;
 };
 
 struct lease_config {
