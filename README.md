@@ -47,18 +47,18 @@ So, for example, a DRM lease for the first LVDS device on the device `/dev/dri/c
 ### Dynamic lease transfer
 
 When `drm-lease-manager` is started with the `-t` option, the
-ownership of a leases resourses can be transfered from
+ownership of a leases resources can be transferred from
 one client to another.
 
 This allows the ownership of the leased resources to be transferred
 without the display being closed and the screen blanking.
-`drm-lease-manager` handles the timing of the tranfser and manages the
+`drm-lease-manager` handles the timing of the transfer and manages the
 references to the DRM device, so that the last framebuffer of
 the old client stays on screen until the new client presents its first frame.
 
 The transition can be completed without direct communication between the old
 and new client applications, however, the client that the lease will be
-transitioned *from* must be able to handle unexpected lease revokation.
+transitioned *from* must be able to handle unexpected lease revocation.
 Once the lease is revoked, all DRM API calls referring to the DRM
 resources managed by the lease will fail with -ENOENT.  The client
 should be able to gracefully handle this condition by, for example,
