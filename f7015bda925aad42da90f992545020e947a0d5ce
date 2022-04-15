@@ -16,6 +16,24 @@
       "revId": "f7015bda925aad42da90f992545020e947a0d5ce",
       "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "8278365d_64cfedd6",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 12,
+      "author": {
+        "id": 163
+      },
+      "writtenOn": "2022-04-15T07:22:20Z",
+      "side": 1,
+      "message": "Marius, thank you for your comments.\n\n\u003e Out of curiosity, suppose you\u0027ve tested this on some of our ref HW platforms? \n\nYes, I\u0027ve tested this on RPi4.  You need the newer kernel version (5.15) on the AGL \"next\" branch to have shared planes. Currently the RPi kernel on \"master\" uses the older vc4-fkms-v3d driver that maps all overlay planes for exclusive access from the various CRTCs.\n\n\u003e Does it work will all kind of planes? \nAh, drm-lease-manager doesn\u0027t use universal planes, so primary and cursor planes are assigned by the kernel.  This setting is only used for overlay planes. I\u0027ll update the description to make it more explicit. Maybe it\u0027s a good idea to change the configuration key from `planes` to `overlay_planes` or `overlays`.\n\n\u003e \n\u003e I have a few questions, but I suppose this aren\u0027t really use-cases because the lease manager is basically in between clients and you don\u0027t really have  a local client trying to use the drm nodes, before or after. \n\u003e \n\u003e - Will the kernel let you create the lease if there\u0027s another user/client already using it?\n\nThe kernel will not, but before that the drm-lease-manager will deny your request to get a lease if it is in use.\n\n\u003e \n\u003e - Will the kernel let you use the other planes for that CRTC? The assumption here is that another client is using the planes on a different CRTC from a lease, and another client attempts to use a CRTC only to find out  that it has just the primary plane for instance (with the overlay being leased to another CRTC).\n\nIf you try to assign the same overlay plane to two different leases in the configuration file, a client that tries to access the plane via a different lease while it is in use will be denied.",
+      "parentUuid": "ee0461f6_3af43611",
+      "revId": "f7015bda925aad42da90f992545020e947a0d5ce",
+      "serverId": "2db66874-6d0c-4434-a3ad-56d904acc56e",
+      "unresolved": true
     }
   ]
 }
