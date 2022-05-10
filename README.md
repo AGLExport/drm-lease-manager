@@ -24,18 +24,33 @@ The basic build procedure is as follows:
 
 `<build_dir>` can be any directory name, but `build` is commonly used.
 
-## Running
+## Configuration
 
-Once installed, running the following command will start the DRM Lease Manager daemon
+The drm-lease-manager configuration file allows the user to specify the mapping
+of DRM connectors to DRM leases. The location of the configuration file can
+be specified with the `--config` command line option.
 
-    drm-lease-manager [<path DRM device>]
+The configuration file consists of a list of lease definitions, containing a name
+of the lease and a list of the included connector names.
 
-If no DRM device is specified, `/dev/dri/card0` will be used.  
-More detailed options can be displayed by specifying the `-h` flag.
+Each list entry is of the following form:
 
-### Lease naming
+```toml
+[[lease]]    
+name="My lease"
+connectors=["connector 1", "connector 2"]
+```
+* Note: quotes around all string values are mandatory.
 
-One DRM lease will be created for each connector on the DRM device (up to the number of available CRTCs).
+This will create a lease named `My lease` and add the two connectors `connector 1` and
+`connector 2` to the lease.  
+If there is no connector with either of the names exists on the system, that name
+will be omitted from the lease.
+
+### Default configuration
+
+If no configuration file is specified one DRM lease will be created for each connector
+on the DRM device (up to the number of available CRTCs).
 
 The names of the DRM leases will have the following pattern:
 
@@ -44,21 +59,30 @@ The names of the DRM leases will have the following pattern:
 So, for example, a DRM lease for the first LVDS device on the device `/dev/dri/card0` would be named
 `card0-LVDS-1`.
 
+## Running
+
+Once installed, running the following command will start the DRM Lease Manager daemon
+
+    drm-lease-manager [<path DRM device>]
+
+If no DRM device is specified, the first available device capabale of modesetting will
+be used.  More detailed options can be displayed by specifying the `-h` flag.
+
 ### Dynamic lease transfer
 
 When `drm-lease-manager` is started with the `-t` option, the
-ownership of a leases resourses can be transfered from
+ownership of a leases resources can be transferred from
 one client to another.
 
 This allows the ownership of the leased resources to be transferred
 without the display being closed and the screen blanking.
-`drm-lease-manager` handles the timing of the tranfser and manages the
+`drm-lease-manager` handles the timing of the transfer and manages the
 references to the DRM device, so that the last framebuffer of
 the old client stays on screen until the new client presents its first frame.
 
 The transition can be completed without direct communication between the old
 and new client applications, however, the client that the lease will be
-transitioned *from* must be able to handle unexpected lease revokation.
+transitioned *from* must be able to handle unexpected lease revocation.
 Once the lease is revoked, all DRM API calls referring to the DRM
 resources managed by the lease will fail with -ENOENT.  The client
 should be able to gracefully handle this condition by, for example,

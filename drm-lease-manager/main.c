@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "lease-config.h"
 #include "lease-manager.h"
 #include "lease-server.h"
 #include "log.h"
@@ -27,24 +28,28 @@ static void usage(const char *progname)
 	printf("Usage: %s [OPTIONS] [<DRM device>]\n\n"
 	       "Options:\n"
 	       "-h, --help \tPrint this help\n"
+	       "-c, --config \t path to configuration file (default "
+	       "/etc/drm-lease-manager.toml)\n"
 	       "-v, --verbose \tEnable verbose debug messages\n"
 	       "-t, --lease-transfer \tAllow lease transfter to new clients\n"
 	       "-k, --keep-on-crash \tDon't close lease on client crash\n",
 	       progname);
 }
 
-const char *opts = "vtkh";
+const char *opts = "vtkhc:";
 const struct option options[] = {
     {"help", no_argument, NULL, 'h'},
     {"verbose", no_argument, NULL, 'v'},
     {"lease-transfer", no_argument, NULL, 't'},
     {"keep-on-crash", no_argument, NULL, 'k'},
+    {"config", required_argument, NULL, 'c'},
     {NULL, 0, NULL, 0},
 };
 
 int main(int argc, char **argv)
 {
-	char *device = "/dev/dri/card0";
+	char *device = NULL;
+	char *config_file = "/etc/drm-lease-manager.toml";
 
 	bool debug_log = false;
 	bool can_transfer_leases = false;
@@ -63,6 +68,9 @@ int main(int argc, char **argv)
 		case 'k':
 			keep_on_crash = true;
 			break;
+		case 'c':
+			config_file = optarg;
+			break;
 		case 'h':
 			ret = EXIT_SUCCESS;
 			/* fall through */
@@ -77,7 +85,12 @@ int main(int argc, char **argv)
 
 	dlm_log_enable_debug(debug_log);
 
-	struct lm *lm = lm_create(device);
+	struct lease_config *lease_configs = NULL;
+	int num_configs = parse_config(config_file, &lease_configs);
+
+	struct lm *lm =
+	    lm_create_with_config(device, num_configs, lease_configs);
+
 	if (!lm) {
 		ERROR_LOG("DRM Lease initialization failed\n");
 		return EXIT_FAILURE;
@@ -145,5 +158,6 @@ int main(int argc, char **argv)
 done:
 	ls_destroy(ls);
 	lm_destroy(lm);
+	release_config(num_configs, lease_configs);
 	return EXIT_FAILURE;
 }

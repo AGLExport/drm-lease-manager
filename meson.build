@@ -35,6 +35,7 @@ configuration_inc = include_directories('.')
 
 drm_dep = dependency('libdrm', version: '>= 2.4.89')
 thread_dep = dependency('threads')
+toml_dep = dependency('libtoml')
 
 enable_tests = get_option('enable-tests')
 

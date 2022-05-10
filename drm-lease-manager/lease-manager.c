@@ -34,9 +34,9 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-/* Number of resources, excluding planes, to be included in each DRM lease.
- * Each lease needs at least a CRTC and conector. */
-#define DRM_LEASE_MIN_RES (2)
+/* Number of resources, to be included in a DRM lease for each connector.
+ * Each connector needs both a CRTC and conector object:. */
+#define DRM_OBJECTS_PER_CONNECTOR (2)
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof(x[0]))
 
@@ -64,6 +64,9 @@ struct lm {
 	drmModePlaneResPtr drm_plane_resource;
 	uint32_t available_crtcs;
 
+	char **connector_names;
+	int nconnectors;
+
 	struct lease **leases;
 	int nleases;
 };
@@ -90,7 +93,7 @@ static const char *const connector_type_names[] = {
     [DRM_MODE_CONNECTOR_WRITEBACK] = "Writeback",
 };
 
-static char *drm_create_lease_name(struct lm *lm, drmModeConnectorPtr connector)
+static char *drm_create_connector_name(drmModeConnectorPtr connector)
 {
 	uint32_t type = connector->connector_type;
 	uint32_t id = connector->connector_type_id;
@@ -104,8 +107,18 @@ static char *drm_create_lease_name(struct lm *lm, drmModeConnectorPtr connector)
 		id = connector->connector_id;
 
 	char *name;
-	if (asprintf(&name, "card%d-%s-%d", minor(lm->dev_id),
-		     connector_type_names[type], id) < 0)
+	if (asprintf(&name, "%s-%d", connector_type_names[type], id) < 0)
+		return NULL;
+
+	return name;
+}
+
+static char *drm_create_default_lease_name(struct lm *lm, int cindex)
+{
+	char *connector_name = lm->connector_names[cindex];
+
+	char *name;
+	if (asprintf(&name, "card%d-%s", minor(lm->dev_id), connector_name) < 0)
 		return NULL;
 
 	return name;
@@ -189,17 +202,62 @@ static void drm_find_available_crtcs(struct lm *lm)
 	}
 }
 
-static bool lease_add_planes(struct lm *lm, struct lease *lease, int crtc_index)
+static bool drm_find_connector(struct lm *lm, char *name, uint32_t *id)
 {
-	for (uint32_t i = 0; i < lm->drm_plane_resource->count_planes; i++) {
-		uint32_t plane_id = lm->drm_plane_resource->planes[i];
+	int connectors = lm->drm_resource->count_connectors;
+
+	for (int i = 0; i < connectors; i++) {
+		if (strcmp(lm->connector_names[i], name))
+			continue;
+		if (id)
+			*id = lm->drm_resource->connectors[i];
+		return true;
+	}
+	return false;
+}
+
+static void config_get_planes(struct lm *lm,
+			      const struct connector_config *config,
+			      int *nplanes, uint32_t **planes)
+{
+	if (config && config->planes) {
+		*nplanes = config->nplanes;
+		*planes = config->planes;
+	} else {
+		*nplanes = (int)lm->drm_plane_resource->count_planes;
+		*planes = lm->drm_plane_resource->planes;
+	}
+}
+
+static bool lease_add_planes(struct lm *lm, struct lease *lease,
+			     uint32_t crtc_index,
+			     const struct connector_config *con_config)
+{
+	int nplanes;
+	uint32_t *planes;
+	uint32_t crtc_mask = (1 << crtc_index);
+
+	/* Only allow shared planes when plane list is explicitly set */
+	bool allow_shared = con_config && con_config->planes;
+
+	config_get_planes(lm, con_config, &nplanes, &planes);
+
+	for (int i = 0; i < nplanes; i++) {
+		uint32_t plane_id = planes[i];
 		drmModePlanePtr plane = drmModeGetPlane(lm->drm_fd, plane_id);
 
-		assert(plane);
+		if (!plane) {
+			ERROR_LOG(
+			    "Unknown plane id %d configured in lease: %s\n",
+			    plane_id, lease->base.name);
+			return false;
+		}
 
-		// Exclude planes that can be used with multiple CRTCs for now
-		if (plane->possible_crtcs == (1u << crtc_index)) {
-			lease->object_ids[lease->nobject_ids++] = plane_id;
+		if (plane->possible_crtcs & crtc_mask) {
+			bool shared_plane = plane->possible_crtcs != crtc_mask;
+			if (allow_shared || !shared_plane)
+				lease->object_ids[lease->nobject_ids++] =
+				    plane_id;
 		}
 		drmModeFreePlane(plane);
 	}
@@ -294,42 +352,97 @@ static void lease_free(struct lease *lease)
 	free(lease);
 }
 
-static struct lease *lease_create(struct lm *lm, drmModeConnectorPtr connector)
+static struct lease *lease_create(struct lm *lm,
+				  const struct lease_config *config)
 {
-	struct lease *lease = calloc(1, sizeof(struct lease));
+	struct lease *lease;
+
+	if (!config->lease_name) {
+		ERROR_LOG("Mising lease name\n");
+		return NULL;
+	}
+
+	lease = calloc(1, sizeof(struct lease));
 	if (!lease) {
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		return NULL;
 	}
 
-	lease->base.name = drm_create_lease_name(lm, connector);
+	lease->base.name = strdup(config->lease_name);
 	if (!lease->base.name) {
 		DEBUG_LOG("Can't create lease name: %s\n", strerror(errno));
 		goto err;
 	}
 
-	int nobjects = lm->drm_plane_resource->count_planes + DRM_LEASE_MIN_RES;
+	int nconnectors =
+	    config->nconnectors > 0 ? config->nconnectors : config->ncids;
+	int nobjects = lm->drm_plane_resource->count_planes +
+		       nconnectors * DRM_OBJECTS_PER_CONNECTOR;
+
 	lease->object_ids = calloc(nobjects, sizeof(uint32_t));
 	if (!lease->object_ids) {
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		goto err;
 	}
 
-	int crtc_index = drm_get_crtc_index(lm, connector);
-	if (crtc_index < 0) {
-		DEBUG_LOG("No crtc found for connector: %s\n",
-			  lease->base.name);
-		goto err;
+	for (int i = 0; i < nconnectors; i++) {
+		uint32_t cid;
+		struct connector_config *con_config = NULL;
+
+		if (config->nconnectors > 0)
+			con_config = &config->connectors[i];
+
+		if (con_config) {
+			char *connector_name = con_config->name;
+			bool optional = con_config->optional;
+
+			bool found =
+			    drm_find_connector(lm, connector_name, &cid);
+
+			bool missing_mandatory = !found && !optional;
+			bool missing_optional = !found && optional;
+
+			if (missing_mandatory) {
+				ERROR_LOG("Lease: %s, "
+					  "mandatory connector %s not found\n",
+					  config->lease_name, connector_name);
+				goto err;
+			} else if (missing_optional) {
+				WARN_LOG("Lease: %s, "
+					 "unknown DRM connector: %s\n",
+					 config->lease_name, connector_name);
+				continue;
+			}
+		} else {
+			cid = config->connector_ids[i];
+		}
+
+		drmModeConnectorPtr connector =
+		    drmModeGetConnector(lm->drm_fd, cid);
+
+		if (connector == NULL) {
+			ERROR_LOG("Can't find connector id: %d\n", cid);
+			goto err;
+		}
+
+		int crtc_index = drm_get_crtc_index(lm, connector);
+
+		drmModeFreeConnector(connector);
+
+		if (crtc_index < 0) {
+			DEBUG_LOG("No crtc found for connector: %d, lease %s\n",
+				  cid, lease->base.name);
+			goto err;
+		}
+
+		if (!lease_add_planes(lm, lease, crtc_index, con_config))
+			goto err;
+
+		uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
+		lease->crtc_id = crtc_id;
+		lease->object_ids[lease->nobject_ids++] = crtc_id;
+		lease->object_ids[lease->nobject_ids++] = cid;
 	}
-
-	if (!lease_add_planes(lm, lease, crtc_index))
-		goto err;
-
-	uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
-	lease->crtc_id = crtc_id;
-	lease->object_ids[lease->nobject_ids++] = crtc_id;
-	lease->object_ids[lease->nobject_ids++] = connector->connector_id;
-
 	lease->is_granted = false;
 	lease->lease_fd = -1;
 
@@ -340,7 +453,58 @@ err:
 	return NULL;
 }
 
-struct lm *lm_create(const char *device)
+static void destroy_default_lease_configs(int num_configs,
+					  struct lease_config *configs)
+{
+	for (int i = 0; i < num_configs; i++) {
+		free(configs[i].connector_ids);
+		free(configs[i].lease_name);
+	}
+
+	free(configs);
+}
+
+static int create_default_lease_configs(struct lm *lm,
+					struct lease_config **configs)
+{
+	struct lease_config *def_configs;
+	int num_configs = lm->drm_resource->count_connectors;
+
+	if (num_configs < 0)
+		return -1;
+
+	def_configs = calloc(num_configs, sizeof(*def_configs));
+	if (!def_configs) {
+		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	for (int i = 0; i < num_configs; i++) {
+		uint32_t cid = lm->drm_resource->connectors[i];
+
+		def_configs[i].connector_ids = malloc(sizeof(uint32_t));
+		if (!def_configs[i].connector_ids) {
+			DEBUG_LOG("Memory allocation failed: %s\n",
+				  strerror(errno));
+			goto err;
+		}
+
+		def_configs[i].lease_name =
+		    drm_create_default_lease_name(lm, i);
+
+		def_configs[i].connector_ids[0] = cid;
+		def_configs[i].ncids = 1;
+	}
+
+	*configs = def_configs;
+	return num_configs;
+
+err:
+	destroy_default_lease_configs(num_configs, def_configs);
+	return -1;
+}
+
+static struct lm *drm_device_get_resources(const char *device)
 {
 	struct lm *lm = calloc(1, sizeof(struct lm));
 	if (!lm) {
@@ -351,6 +515,13 @@ struct lm *lm_create(const char *device)
 	if (lm->drm_fd < 0) {
 		ERROR_LOG("Cannot open DRM device (%s): %s\n", device,
 			  strerror(errno));
+		goto err;
+	}
+
+	/* Enable universal planes so that ALL planes, even primary and cursor
+	 * planes can be assigned from lease configurations. */
+	if (drmSetClientCap(lm->drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+		DEBUG_LOG("drmSetClientCap failed\n");
 		goto err;
 	}
 
@@ -376,27 +547,65 @@ struct lm *lm_create(const char *device)
 
 	lm->dev_id = st.st_rdev;
 
-	int num_leases = lm->drm_resource->count_connectors;
+	lm->nconnectors = lm->drm_resource->count_connectors;
+	lm->connector_names = calloc(lm->nconnectors, sizeof(char *));
 
+	for (int i = 0; i < lm->nconnectors; i++) {
+		drmModeConnectorPtr connector;
+		uint32_t cid = lm->drm_resource->connectors[i];
+
+		connector = drmModeGetConnector(lm->drm_fd, cid);
+		lm->connector_names[i] = drm_create_connector_name(connector);
+		drmModeFreeConnector(connector);
+
+		if (!lm->connector_names[i]) {
+			DEBUG_LOG("Can't create name for connector %d: %s\n",
+				  cid, strerror(errno));
+			goto err;
+		}
+	}
+	return lm;
+err:
+	lm_destroy(lm);
+	return NULL;
+}
+
+static struct lm *drm_find_drm_device(const char *device)
+{
+	drmDevicePtr devices[64];
+	int ndevs;
+	struct lm *lm = NULL;
+
+	if (device)
+		return drm_device_get_resources(device);
+
+	ndevs = drmGetDevices2(0, devices, 64);
+
+	for (int i = 0; i < ndevs; i++) {
+		lm = drm_device_get_resources(
+		    devices[i]->nodes[DRM_NODE_PRIMARY]);
+		if (lm)
+			break;
+	}
+
+	drmFreeDevices(devices, ndevs);
+
+	return lm;
+}
+
+static int lm_create_leases(struct lm *lm, int num_leases,
+			    const struct lease_config *configs)
+{
 	lm->leases = calloc(num_leases, sizeof(struct lease *));
 	if (!lm->leases) {
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
-		goto err;
+		return -1;
 	}
 
 	drm_find_available_crtcs(lm);
 
 	for (int i = 0; i < num_leases; i++) {
-		uint32_t connector_id = lm->drm_resource->connectors[i];
-		drmModeConnectorPtr connector =
-		    drmModeGetConnector(lm->drm_fd, connector_id);
-
-		if (!connector)
-			continue;
-
-		struct lease *lease = lease_create(lm, connector);
-		drmModeFreeConnector(connector);
-
+		struct lease *lease = lease_create(lm, &configs[i]);
 		if (!lease)
 			continue;
 
@@ -404,13 +613,45 @@ struct lm *lm_create(const char *device)
 		lm->nleases++;
 	}
 	if (lm->nleases == 0)
-		goto err;
+		return -1;
 
+	return 0;
+}
+
+struct lm *lm_create_with_config(const char *device, int num_leases,
+				 struct lease_config *configs)
+{
+	struct lease_config *default_configs = NULL;
+	struct lm *lm = drm_find_drm_device(device);
+
+	if (!lm) {
+		ERROR_LOG("No available DRM device found\n");
+		return NULL;
+	}
+
+	if (configs == NULL || num_leases == 0) {
+		num_leases = create_default_lease_configs(lm, &default_configs);
+		if (num_leases < 0) {
+			lm_destroy(lm);
+			ERROR_LOG("DRM connector enumeration failed\n");
+			return NULL;
+		}
+		configs = default_configs;
+	}
+
+	if (lm_create_leases(lm, num_leases, configs) < 0) {
+		lm_destroy(lm);
+		lm = NULL;
+	}
+
+	if (default_configs)
+		destroy_default_lease_configs(num_leases, default_configs);
 	return lm;
+}
 
-err:
-	lm_destroy(lm);
-	return NULL;
+struct lm *lm_create(const char *device)
+{
+	return lm_create_with_config(device, 0, NULL);
 }
 
 void lm_destroy(struct lm *lm)
@@ -425,6 +666,11 @@ void lm_destroy(struct lm *lm)
 	}
 
 	free(lm->leases);
+
+	for (int i = 0; i < lm->nconnectors; i++)
+		free(lm->connector_names[i]);
+	free(lm->connector_names);
+
 	drmModeFreeResources(lm->drm_resource);
 	drmModeFreePlaneResources(lm->drm_plane_resource);
 	close(lm->drm_fd);
