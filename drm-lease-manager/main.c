@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "config.h"
 #include "lease-config.h"
 #include "lease-manager.h"
 #include "lease-server.h"
@@ -22,6 +23,10 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#ifdef HAVE_SYSTEMD_DAEMON
+#include <systemd/sd-daemon.h>
+#endif
 
 static void usage(const char *progname)
 {
@@ -106,6 +111,10 @@ int main(int argc, char **argv)
 		ERROR_LOG("Client socket initialization failed\n");
 		return EXIT_FAILURE;
 	}
+
+#ifdef HAVE_SYSTEMD_DAEMON
+	sd_notify(1, "READY=1");
+#endif
 
 	struct ls_req req;
 	while (ls_get_request(ls, &req)) {
