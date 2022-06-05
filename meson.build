@@ -28,14 +28,16 @@ add_project_arguments(
     language: 'c'
 )
 
-configure_file(output: 'config.h',
-               configuration: config)
-
-configuration_inc = include_directories('.')
-
 drm_dep = dependency('libdrm', version: '>= 2.4.89')
 thread_dep = dependency('threads')
 toml_dep = dependency('libtoml')
+
+systemd_dep = dependency('', required: false)
+if get_option('enable-systemd')
+	systemd_dep = dependency('libsystemd', required: false)
+
+	config.set('HAVE_SYSTEMD_DAEMON', '1')
+endif
 
 enable_tests = get_option('enable-tests')
 
@@ -55,6 +57,11 @@ if enable_tests
     endif
   endif
 endif
+
+configure_file(output: 'config.h',
+               configuration: config)
+
+configuration_inc = include_directories('.')
 
 subdir('common')
 subdir('libdlmclient')
