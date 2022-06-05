@@ -1,0 +1,120 @@
+From f4209e32cda5514b0943f20fbbe43f82576b990f Mon Sep 17 00:00:00 2001
+From: Naoto Yamaguchi <naoto.yamaguchi@aisin.co.jp>
+Date: Sun, 5 Jun 2022 23:40:12 +0900
+Subject: [PATCH] Add sd_notify support
+
+Signed-off-by: Naoto Yamaguchi <naoto.yamaguchi@aisin.co.jp>
+---
+ drm-lease-manager/main.c      |  9 +++++++++
+ drm-lease-manager/meson.build |  3 ++-
+ meson.build                   | 17 ++++++++++++-----
+ meson_options.txt             |  6 ++++++
+ 4 files changed, 29 insertions(+), 6 deletions(-)
+
+diff --git a/drm-lease-manager/main.c b/drm-lease-manager/main.c
+index b4ad379..5ac3600 100644
+--- a/drm-lease-manager/main.c
++++ b/drm-lease-manager/main.c
+@@ -13,6 +13,7 @@
+  * limitations under the License.
+  */
+ 
++#include "config.h"
+ #include "lease-config.h"
+ #include "lease-manager.h"
+ #include "lease-server.h"
+@@ -23,6 +24,10 @@
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
++#ifdef HAVE_SYSTEMD_DAEMON
++#include <systemd/sd-daemon.h>
++#endif
++
+ static void usage(const char *progname)
+ {
+ 	printf("Usage: %s [OPTIONS] [<DRM device>]\n\n"
+@@ -107,6 +112,10 @@ int main(int argc, char **argv)
+ 		return EXIT_FAILURE;
+ 	}
+ 
++#ifdef HAVE_SYSTEMD_DAEMON
++	sd_notify(1, "READY=1");
++#endif
++
+ 	struct ls_req req;
+ 	while (ls_get_request(ls, &req)) {
+ 		switch (req.type) {
+diff --git a/drm-lease-manager/meson.build b/drm-lease-manager/meson.build
+index 4732283..d8c48c7 100644
+--- a/drm-lease-manager/meson.build
++++ b/drm-lease-manager/meson.build
+@@ -4,7 +4,8 @@ lease_server_files = files('lease-server.c')
+ lease_config_files = files('lease-config.c')
+ main = executable('drm-lease-manager',
+     [ 'main.c', lease_manager_files, lease_server_files, lease_config_files ],
+-    dependencies: [ drm_dep, dlmcommon_dep, thread_dep, toml_dep ],
++    dependencies: [ drm_dep, dlmcommon_dep, thread_dep, toml_dep, systemd_dep ],
++    include_directories : configuration_inc,
+     install: true,
+ )
+ 
+diff --git a/meson.build b/meson.build
+index c2c88a6..1694a0a 100644
+--- a/meson.build
++++ b/meson.build
+@@ -28,15 +28,17 @@ add_project_arguments(
+     language: 'c'
+ )
+ 
+-configure_file(output: 'config.h',
+-               configuration: config)
+-
+-configuration_inc = include_directories('.')
+-
+ drm_dep = dependency('libdrm', version: '>= 2.4.89')
+ thread_dep = dependency('threads')
+ toml_dep = dependency('libtoml')
+ 
++systemd_dep = dependency('', required: false)
++if get_option('enable-systemd')
++	systemd_dep = dependency('libsystemd', required: false)
++
++	config.set('HAVE_SYSTEMD_DAEMON', '1')
++endif
++
+ enable_tests = get_option('enable-tests')
+ 
+ if enable_tests
+@@ -56,6 +58,11 @@ if enable_tests
+   endif
+ endif
+ 
++configure_file(output: 'config.h',
++               configuration: config)
++
++configuration_inc = include_directories('.')
++
+ subdir('common')
+ subdir('libdlmclient')
+ subdir('drm-lease-manager')
+diff --git a/meson_options.txt b/meson_options.txt
+index ee1f8dc..7774174 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -10,6 +10,12 @@ option('enable-tests',
+     description: 'Build unit tests'
+ )
+ 
++option('enable-systemd',
++    type: 'boolean',
++    value: false,
++    description: 'Systemd notify support'
++)
++
+ option('runtime_subdir',
+     type: 'string',
+     value: 'run/drm-lease-manager',
+-- 
+2.25.1
+

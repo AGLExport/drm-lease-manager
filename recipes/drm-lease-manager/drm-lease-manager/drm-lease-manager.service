@@ -1,0 +1,13 @@
+[Unit]
+Description=DRM Lease Manager
+After=basic.target
+
+[Service]
+Type=notify
+ExecStart=drm-lease-manager --config=/etc/xdg/drm-lease-manager/drm-lease-manager.ini
+Group=video
+UMask=0007
+RuntimeDirectory=drm-lease-manager
+
+[Install]
+WantedBy=multi-user.target
