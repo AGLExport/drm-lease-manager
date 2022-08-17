@@ -28,7 +28,7 @@ lm_test_sources = [
 lm_test = executable('lease-manager-test',
            sources: lm_test_sources,
            objects: lm_objects,
-           dependencies: [check_dep, fff_dep, dlmcommon_dep, drm_dep],
+           dependencies: [check_dep, fff_dep, dlmcommon_dep, drm_dep, thread_dep],
            c_args: test_c_args,
            include_directories: ls_inc)
 
