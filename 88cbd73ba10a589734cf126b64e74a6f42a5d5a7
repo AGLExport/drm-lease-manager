@@ -1,0 +1,7 @@
+Code-Review+1: Naoto YAMAGUCHI <naoto.yamaguchi@aisin.co.jp>
+Code-Review+2: Jan-Simon Moeller <jsmoeller@linuxfoundation.org>
+Submitted-by: Jan-Simon Moeller <jsmoeller@linuxfoundation.org>
+Submitted-at: Wed, 07 Sep 2022 16:30:20 +0000
+Reviewed-on: https://gerrit.automotivelinux.org/gerrit/c/src/drm-lease-manager/+/27911
+Project: src/drm-lease-manager
+Branch: refs/heads/master
