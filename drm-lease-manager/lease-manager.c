@@ -532,6 +532,13 @@ static struct lm *drm_device_get_resources(const char *device)
 		goto err;
 	}
 
+	if (lm->drm_resource->count_connectors <= 0 ||
+		lm->drm_resource->count_crtcs <= 0 ||
+		lm->drm_resource->count_encoders <= 0) {
+		DEBUG_LOG("Insufficient DRM resources on device(%s)\n", device);
+		goto err;
+	}
+
 	lm->drm_plane_resource = drmModeGetPlaneResources(lm->drm_fd);
 	if (!lm->drm_plane_resource) {
 		DEBUG_LOG("drmModeGetPlaneResources failed: %s\n",
