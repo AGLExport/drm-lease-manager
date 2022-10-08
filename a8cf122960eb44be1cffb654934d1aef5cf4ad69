@@ -1,0 +1,7 @@
+Code-Review+1: Marius Vlad <marius.vlad@collabora.com>
+Code-Review+2: Jan-Simon Moeller <jsmoeller@linuxfoundation.org>
+Submitted-by: Jan-Simon Moeller <jsmoeller@linuxfoundation.org>
+Submitted-at: Sat, 08 Oct 2022 21:55:51 +0000
+Reviewed-on: https://gerrit.automotivelinux.org/gerrit/c/src/drm-lease-manager/+/28033
+Project: src/drm-lease-manager
+Branch: refs/heads/master
