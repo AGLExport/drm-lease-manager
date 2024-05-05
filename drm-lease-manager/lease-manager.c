@@ -230,7 +230,7 @@ static void config_get_planes(struct lm *lm,
 }
 
 static bool lease_add_planes(struct lm *lm, struct lease *lease,
-			     uint32_t crtc_index,
+			     uint32_t crtc_id, uint32_t crtc_index,
 			     const struct connector_config *con_config)
 {
 	int nplanes;
@@ -255,9 +255,12 @@ static bool lease_add_planes(struct lm *lm, struct lease *lease,
 
 		if (plane->possible_crtcs & crtc_mask) {
 			bool shared_plane = plane->possible_crtcs != crtc_mask;
-			if (allow_shared || !shared_plane)
-				lease->object_ids[lease->nobject_ids++] =
-				    plane_id;
+			if (allow_shared || !shared_plane) {
+				lease->object_ids[lease->nobject_ids++] = plane_id;
+			} else if (plane->crtc_id == crtc_id) {
+				// Force add a primary plane.
+				lease->object_ids[lease->nobject_ids++] = plane_id;
+			}
 		}
 		drmModeFreePlane(plane);
 	}
@@ -435,10 +438,11 @@ static struct lease *lease_create(struct lm *lm,
 			goto err;
 		}
 
-		if (!lease_add_planes(lm, lease, crtc_index, con_config))
+		uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
+
+		if (!lease_add_planes(lm, lease, crtc_id, crtc_index, con_config))
 			goto err;
 
-		uint32_t crtc_id = lm->drm_resource->crtcs[crtc_index];
 		lease->crtc_id = crtc_id;
 		lease->object_ids[lease->nobject_ids++] = crtc_id;
 		lease->object_ids[lease->nobject_ids++] = cid;
