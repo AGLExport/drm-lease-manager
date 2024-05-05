@@ -30,24 +30,27 @@
 
 static void usage(const char *progname)
 {
-	printf("Usage: %s [OPTIONS] [<DRM device>]\n\n"
-	       "Options:\n"
-	       "-h, --help \tPrint this help\n"
-	       "-c, --config \t path to configuration file (default "
-	       "/etc/drm-lease-manager.toml)\n"
-	       "-v, --verbose \tEnable verbose debug messages\n"
-	       "-t, --lease-transfer \tAllow lease transfter to new clients\n"
-	       "-k, --keep-on-crash \tDon't close lease on client crash\n",
-	       progname);
+	printf(
+	    "Usage: %s [OPTIONS] [<DRM device>]\n\n"
+	    "Options:\n"
+	    "-h, --help \tPrint this help\n"
+	    "-c, --config \t path to configuration file (default "
+	    "/etc/drm-lease-manager.toml)\n"
+	    "-v, --verbose \tEnable verbose debug messages\n"
+	    "-t, --lease-transfer \tAllow lease transfter to new clients\n"
+	    "-k, --keep-on-crash \tDon't close lease on client crash\n",
+	    "-u, --enable-universal-plane \tEnable universal plane support\n",
+	    progname);
 }
 
-const char *opts = "vtkhc:";
+const char *opts = "vtkhcu:";
 const struct option options[] = {
     {"help", no_argument, NULL, 'h'},
     {"verbose", no_argument, NULL, 'v'},
     {"lease-transfer", no_argument, NULL, 't'},
     {"keep-on-crash", no_argument, NULL, 'k'},
     {"config", required_argument, NULL, 'c'},
+    {"enable-universal-plane", required_argument, NULL, 'u'},
     {NULL, 0, NULL, 0},
 };
 
@@ -59,6 +62,7 @@ int main(int argc, char **argv)
 	bool debug_log = false;
 	bool can_transfer_leases = false;
 	bool keep_on_crash = false;
+	bool universal_plane = false;
 
 	int c;
 	while ((c = getopt_long(argc, argv, opts, options, NULL)) != -1) {
@@ -75,6 +79,9 @@ int main(int argc, char **argv)
 			break;
 		case 'c':
 			config_file = optarg;
+			break;
+		case 'u':
+			universal_plane = true;
 			break;
 		case 'h':
 			ret = EXIT_SUCCESS;
@@ -93,8 +100,8 @@ int main(int argc, char **argv)
 	struct lease_config *lease_configs = NULL;
 	int num_configs = parse_config(config_file, &lease_configs);
 
-	struct lm *lm =
-	    lm_create_with_config(device, num_configs, lease_configs);
+	struct lm *lm = lm_create_with_config(device, num_configs,
+					      lease_configs, universal_plane);
 
 	if (!lm) {
 		ERROR_LOG("DRM Lease initialization failed\n");

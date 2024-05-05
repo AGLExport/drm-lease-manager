@@ -38,6 +38,8 @@ struct lease_config {
 
 	int nconnectors;
 	struct connector_config *connectors;
+
+	bool have_plane_setting;
 };
 
 #endif

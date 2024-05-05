@@ -21,7 +21,8 @@ struct lm;
 
 struct lm *lm_create(const char *path);
 struct lm *lm_create_with_config(const char *path, int leases,
-				 struct lease_config *configs);
+				 struct lease_config *configs,
+				 bool universal_plane);
 
 void lm_destroy(struct lm *lm);
 

@@ -78,10 +78,17 @@ static bool populate_connector_config(struct lease_config *config,
 
 		toml_array_t *planes =
 		    toml_array_in(conn_config_data, "planes");
-		if (planes && !populate_connector_planes(conn_config, planes)) {
-			ERROR_LOG("Invalid plane id for connector: %s\n",
-				  conn_config->name);
-			return false;
+		if (planes != NULL) {
+			bool ret =
+			    populate_connector_planes(conn_config, planes);
+			if (ret == false) {
+				ERROR_LOG(
+				    "Invalid plane id for connector: %s\n",
+				    conn_config->name);
+				return false;
+			} else {
+				config->have_plane_setting = true;
+			}
 		}
 	}
 	return true;
@@ -119,6 +126,7 @@ int parse_config(char *filename, struct lease_config **parsed_config)
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		goto err;
 	}
+	config->have_plane_setting = false;
 
 	for (i = 0; i < toml_array_nelem(leases); i++) {
 		toml_table_t *lease = toml_table_at(leases, i);

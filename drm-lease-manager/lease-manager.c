@@ -504,9 +504,12 @@ err:
 	return -1;
 }
 
-static struct lm *drm_device_get_resources(const char *device)
+static struct lm *drm_device_get_resources(const char *device,
+					   bool universal_plane)
 {
 	struct lm *lm = calloc(1, sizeof(struct lm));
+	uint64_t value = 0;
+
 	if (!lm) {
 		DEBUG_LOG("Memory allocation failed: %s\n", strerror(errno));
 		return NULL;
@@ -518,9 +521,16 @@ static struct lm *drm_device_get_resources(const char *device)
 		goto err;
 	}
 
-	/* Enable universal planes so that ALL planes, even primary and cursor
-	 * planes can be assigned from lease configurations. */
-	if (drmSetClientCap(lm->drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+	/* When -u option set at args. Enable universal planes so that ALL
+	   planes, even primary and cursor planes can be assigned from lease
+	   configurations. */
+	if (universal_plane == true) {
+		DEBUG_LOG("Enable universal plean mode.\n");
+		value = 1;
+	}
+
+	if (drmSetClientCap(lm->drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES,
+			    value)) {
 		DEBUG_LOG("drmSetClientCap failed\n");
 		goto err;
 	}
@@ -533,8 +543,8 @@ static struct lm *drm_device_get_resources(const char *device)
 	}
 
 	if (lm->drm_resource->count_connectors <= 0 ||
-		lm->drm_resource->count_crtcs <= 0 ||
-		lm->drm_resource->count_encoders <= 0) {
+	    lm->drm_resource->count_crtcs <= 0 ||
+	    lm->drm_resource->count_encoders <= 0) {
 		DEBUG_LOG("Insufficient DRM resources on device(%s)\n", device);
 		goto err;
 	}
@@ -577,20 +587,20 @@ err:
 	return NULL;
 }
 
-static struct lm *drm_find_drm_device(const char *device)
+static struct lm *drm_find_drm_device(const char *device, bool universal_plane)
 {
 	drmDevicePtr devices[64];
 	int ndevs;
 	struct lm *lm = NULL;
 
 	if (device)
-		return drm_device_get_resources(device);
+		return drm_device_get_resources(device, universal_plane);
 
 	ndevs = drmGetDevices2(0, devices, 64);
 
 	for (int i = 0; i < ndevs; i++) {
 		lm = drm_device_get_resources(
-		    devices[i]->nodes[DRM_NODE_PRIMARY]);
+		    devices[i]->nodes[DRM_NODE_PRIMARY], universal_plane);
 		if (lm)
 			break;
 	}
@@ -626,10 +636,11 @@ static int lm_create_leases(struct lm *lm, int num_leases,
 }
 
 struct lm *lm_create_with_config(const char *device, int num_leases,
-				 struct lease_config *configs)
+				 struct lease_config *configs,
+				 bool universal_plane)
 {
 	struct lease_config *default_configs = NULL;
-	struct lm *lm = drm_find_drm_device(device);
+	struct lm *lm = drm_find_drm_device(device, universal_plane);
 
 	if (!lm) {
 		ERROR_LOG("No available DRM device found\n");
@@ -658,7 +669,7 @@ struct lm *lm_create_with_config(const char *device, int num_leases,
 
 struct lm *lm_create(const char *device)
 {
-	return lm_create_with_config(device, 0, NULL);
+	return lm_create_with_config(device, 0, NULL, false);
 }
 
 void lm_destroy(struct lm *lm)
