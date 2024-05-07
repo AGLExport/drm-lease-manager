@@ -30,27 +30,67 @@ The drm-lease-manager configuration file allows the user to specify the mapping
 of DRM connectors to DRM leases. The location of the configuration file can
 be specified with the `--config` command line option.
 
-The configuration file consists of a list of lease definitions, containing a name
-of the lease and a list of the included connector names.
+The TOML configuration file consists of a list of lease definitions
+and a set of optional connector configurations.
+
+### Lease definitions
 
 Each list entry is of the following form:
 
 ```toml
 [[lease]]    
 name="My lease"
-connectors=["connector 1", "connector 2"]
+connectors=["HDMI-A-1", "LVDS-1"]
 ```
 * Note: quotes around all string values are mandatory.
+Additional leases can be configured by adding another entry to the `[[lease]]`
+list.
 
-This will create a lease named `My lease` and add the two connectors `connector 1` and
-`connector 2` to the lease.  
-If there is no connector with either of the names exists on the system, that name
-will be omitted from the lease.
+#### name
+
+The `name` of the lease can be requested by lease clients.
+
+#### connectors
+
+A list of connector names to include in the lease. The above example
+uses HDMI and LVDS, but any supported DRM connector type may be used.
+If any of these connector names does not exist on the system, the lease
+will not be created.  
+A connector can be marked as `optional` in the connector configuration if
+necessary.
+
+### Connector configuration
+
+Each connector that appears in the `connectors` field of a lease configuration
+can be additionally configured in a table with the connector name.  
+To continue the example above, the connector configuration could be as follows:
+
+```toml
+["HDMI-A-1"]
+optional = true
+planes = [31, 33, 35]
+```
+Note that leases are defined as a list named "leases" (`[[lease]]`), while
+connectors are defined as tables named after each connector (`["connector 1"]`).
+
+#### optional
+Creating a lease with a connector that is marked `optional` will not fail if
+the connector is unavailable. Lease creation will continue as if the
+connector name was omitted from the lease definition.
+
+#### planes
+`planes` defines the list of DRM planes that should be associated with each
+connector.  These planes will be available in any lease that includes the
+connector. This setting can be used to assign DRM planes that can be shared
+between multiple connectors.
 
 ### Default configuration
 
-If no configuration file is specified one DRM lease will be created for each connector
-on the DRM device (up to the number of available CRTCs).
+If no configuration file is specified one DRM lease will be created for each
+connector on the DRM device (up to the number of available CRTCs).
+All DRM planes that are used `exclusively` by the connector will also be added
+to the lease.  To add DRM Planes that are shared with other connectors, a
+configuration file with a suitable connector configuration must be used.
 
 The names of the DRM leases will have the following pattern:
 
