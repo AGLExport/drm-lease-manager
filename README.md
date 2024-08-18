@@ -30,10 +30,21 @@ The drm-lease-manager configuration file allows the user to specify the mapping
 of DRM connectors to DRM leases. The location of the configuration file can
 be specified with the `--config` command line option.
 
+The drm-lease-manager has two lease modes.  1st one is a single-plane mode, and the other is a multi-plane mode.
+
+A single-plane mode supports only one plane per output connector.  On the other hand, it worked various DRM drivers.
+
+A multi-plane mode supports one or more planes per output connector.
+On the other hand, this mode did not work some DRM driver such as rockchip without strict connector configuration.
+
+The default is single-plane mode.  When you want to use multi-plane mode, use `--enable-universal-plane` command line option.
+
 The TOML configuration file consists of a list of lease definitions
 and a set of optional connector configurations.
 
 ### Lease definitions
+
+**This configuration is required both single-plane mode and multi-plane mode.**
 
 Each list entry is of the following form:
 
@@ -60,6 +71,8 @@ A connector can be marked as `optional` in the connector configuration if
 necessary.
 
 ### Connector configuration
+
+**This setting is optional not a mandatory.  That setting is using in multi-plane mode.**
 
 Each connector that appears in the `connectors` field of a lease configuration
 can be additionally configured in a table with the connector name.  
