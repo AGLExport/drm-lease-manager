@@ -109,7 +109,7 @@ static struct lease_handle **create_leases(int num_leases,
 {
 	if (configs)
 		g_lm =
-		    lm_create_with_config(TEST_DRM_DEVICE, num_leases, configs);
+		    lm_create_with_config(TEST_DRM_DEVICE, num_leases, configs, false);
 	else
 		g_lm = lm_create(TEST_DRM_DEVICE);
 
@@ -470,7 +470,7 @@ START_TEST(single_failed_lease)
 	/* Expect fewer leases than configurations supplied, so explicitly
 	 * create and check leases. */
 	g_lm = lm_create_with_config(TEST_DRM_DEVICE, ARRAY_LEN(lconfigs),
-				     lconfigs);
+				     lconfigs, false);
 	ck_assert_ptr_ne(g_lm, NULL);
 
 	struct lease_handle **handles;
